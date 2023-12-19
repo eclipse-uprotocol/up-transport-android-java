@@ -9,10 +9,3 @@
 # SPDX-FileCopyrightText: 2023 General Motors GTO LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-**/build
-.gradle
-.idea
-.DS_Store
-.vscode
-local.properties
-java*.hprof
