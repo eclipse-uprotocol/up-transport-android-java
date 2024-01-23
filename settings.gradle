@@ -26,5 +26,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'uClient Android Library'
+rootProject.name = 'uProtocol Client Android Library'
 include ':library'

@@ -23,9 +23,9 @@
  */
 package org.eclipse.uprotocol;
 
-import static org.eclipse.uprotocol.ULink.META_DATA_ENTITY_ID;
-import static org.eclipse.uprotocol.ULink.META_DATA_ENTITY_NAME;
-import static org.eclipse.uprotocol.ULink.META_DATA_ENTITY_VERSION;
+import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_ID;
+import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_NAME;
+import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_VERSION;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.toStatus;
 import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
 import static org.junit.Assert.assertEquals;
@@ -48,6 +48,7 @@ import androidx.annotation.NonNull;
 import com.google.protobuf.Empty;
 
 import org.eclipse.uprotocol.common.UStatusException;
+import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
 import org.eclipse.uprotocol.uri.builder.UResourceBuilder;
 import org.eclipse.uprotocol.uuid.factory.UuidFactory;
@@ -129,6 +130,10 @@ public class TestBase {
     protected static final String TOKEN =
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG" +
             "4gU21pdGgiLCJpYXQiOjE1MTYyMzkwMjJ9.Q_w2AVguPRU2KskCXwR7ZHl09TQXEntfEA8Jj2_Jyew";
+    protected static final CallOptions OPTIONS = CallOptions.newBuilder()
+            .withTimeout(TTL)
+            .withToken(TOKEN)
+            .build();
     protected static final UAttributes ATTRIBUTES = UAttributes.newBuilder()
             .setId(ID)
             .setType(UMessageType.UMESSAGE_TYPE_RESPONSE)

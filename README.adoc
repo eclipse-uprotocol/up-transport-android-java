@@ -5,7 +5,7 @@
 :source-highlighter: coderay
 
 == Overview
-The following is the uProtocol client library that implements uTransport, RpcClient and RpcService defined in https://github.com/eclipse-uprotocol/up-java[uProtocol Java SKD] using Android Binder. It also includes some commonly used utilities for error handling.
+The following is the uProtocol client library that implements uTransport, RpcClient and RpcService defined in https://github.com/eclipse-uprotocol/up-java[uProtocol Java Library] using Android Binder. It also includes some commonly used utilities for error handling.
 
 == Getting Started
 === Importing the Library
@@ -21,7 +21,7 @@ android {
 ----
 
 === Configuring the Library
-`ULink`, by default, establishes a connection to uBus service that is integrated into the system as part of `"org.eclipse.uprotocol.core"` package.
+`UPClient`, by default, establishes a connection to uBus service that is integrated into the system as part of `"org.eclipse.uprotocol.core"` package.
 
 If a service that implements `IUBus.aidl` interface is integrated in a different package, you should configure the library by specifying that component or just that package.
 
@@ -35,16 +35,16 @@ If a service that implements `IUBus.aidl` interface is integrated in a different
 
 === Using the Library
 ==== Connecting to uTransport
-Before using the `ULink` APIs, a uE must create an instance and connect to uBus.
+Before using the `UPClient` APIs, a uE must create an instance and connect to uBus.
 
 First create an instance with one of static factory methods:
 
 [,java]
 ----
-static ULink create(Context context, Handler handler, ServiceLifecycleListener listener)
-static ULink create(Context context, Executor executor, ServiceLifecycleListener listener)
-static ULink create(Context context, UEntity entity, Handler handler, ServiceLifecycleListener listener)
-static ULink create(Context context, UEntity entity, Executor executor, ServiceLifecycleListener listener)
+static UPClient create(Context context, Handler handler, ServiceLifecycleListener listener)
+static UPClient create(Context context, Executor executor, ServiceLifecycleListener listener)
+static UPClient create(Context context, UEntity entity, Handler handler, ServiceLifecycleListener listener)
+static UPClient create(Context context, UEntity entity, Executor executor, ServiceLifecycleListener listener)
 ----
 
 [%hardbreaks]
@@ -79,7 +79,7 @@ For the example below you may use any `create(...)` factory method.
 </manifest>
 ----
 
-For the next example you should create a separate instance of `ULink` for each uE using `create(..., UEntity entity,...)` factory method.
+For the next example you should create a separate instance of `UPClient` for each uE using `create(..., UEntity entity,...)` factory method.
 
 .Example 2: Several Android uEs bundled together in APK
 [,xml]
@@ -120,14 +120,14 @@ Then connect to uBus using a reactive API below:
 CompletionStage<UStatus> connect()
 ----
 
-When you are done with the `ULink` you should disconnect from uBus:
+When you are done with the `UPClient` you should disconnect from uBus:
 
 [,java]
 ----
 CompletionStage<UStatus> disconnect()
 ----
 
-You cannot use other methods until the `ULink` is connected. When this happens the `CompletionStage<UStatus>` returned by connect() will be completed and you also will receive the `onLifecycleChanged(..., true)` callback on your service lifecycle listener. You may query the connected status using these methods:
+You cannot use other methods until the `UPClient` is connected. When this happens the `CompletionStage<UStatus>` returned by connect() will be completed and you also will receive the `onLifecycleChanged(..., true)` callback on your service lifecycle listener. You may query the connected status using these methods:
 
 [,java]
 ----
@@ -137,7 +137,7 @@ boolean isConnected()
 ----
 
 ==== Sending a UMessage
-For both, publisher/subscriber or observer (notification) design patterns, a uE should use the `ULink` to send messages to consumers using any method below:
+For both, publisher/subscriber or observer (notification) design patterns, a uE should use the `UPClient` to send messages to consumers using any method below:
 
 [,java]
 ----

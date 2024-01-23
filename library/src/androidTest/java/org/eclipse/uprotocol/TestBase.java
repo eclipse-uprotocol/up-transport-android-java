@@ -123,14 +123,14 @@ public class TestBase {
         return builder.build();
     }
 
-    protected static void connect(@NonNull ULink link) {
-        assertStatus(UCode.OK, getOrThrow(link.connect().toCompletableFuture(), CONNECTION_TIMEOUT_MS));
-        assertTrue(link.isConnected());
+    protected static void connect(@NonNull UPClient client) {
+        assertStatus(UCode.OK, getOrThrow(client.connect().toCompletableFuture(), CONNECTION_TIMEOUT_MS));
+        assertTrue(client.isConnected());
     }
 
-    protected static void disconnect(@NonNull ULink link) {
-        assertStatus(UCode.OK, getOrThrow(link.disconnect().toCompletableFuture()));
-        assertTrue(link.isDisconnected());
+    protected static void disconnect(@NonNull UPClient client) {
+        assertStatus(UCode.OK, getOrThrow(client.disconnect().toCompletableFuture()));
+        assertTrue(client.isDisconnected());
     }
 
     protected static void assertStatus(@NonNull UCode code, @NonNull UStatus status) {

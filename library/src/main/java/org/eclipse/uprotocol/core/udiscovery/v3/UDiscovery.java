@@ -21,7 +21,7 @@
  * SPDX-FileCopyrightText: 2023 General Motors GTO LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-package org.eclipse.uprotocol.core.usubscription.v3;
+package org.eclipse.uprotocol.core.udiscovery.v3;
 
 import static org.eclipse.uprotocol.rpc.RpcMapper.mapResponse;
 import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
@@ -37,43 +37,34 @@ import org.eclipse.uprotocol.v1.UUri;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
-@SuppressWarnings("unused")
-public class USubscription {
+public class UDiscovery {
     public static final UEntity SERVICE = UEntity.newBuilder()
-            .setName(getServiceName())
-            .setVersionMajor(getServiceVersion())
+            .setName("core.udiscovery")
+            .setVersionMajor(3)
             .build();
-    public static final String METHOD_SUBSCRIBE = "Subscribe";
-    public static final String METHOD_UNSUBSCRIBE = "Unsubscribe";
-    public static final String METHOD_FETCH_SUBSCRIPTIONS = "FetchSubscriptions";
-    public static final String METHOD_CREATE_TOPIC = "CreateTopic";
-    public static final String METHOD_DEPRECATE_TOPIC = "DeprecateTopic";
+    public static final String METHOD_LOOKUP_URI = "LookupUri";
+    public static final String METHOD_UPDATE_NODE = "UpdateNode";
+    public static final String METHOD_FIND_NODES = "FindNodes";
+    public static final String METHOD_FIND_NODE_PROPERTIES = "FindNodeProperties";
+    public static final String METHOD_DELETE_NODES = "DeleteNodes";
+    public static final String METHOD_ADD_NODES = "AddNodes";
+    public static final String METHOD_UPDATE_PROPERTY = "UpdateProperty";
     public static final String METHOD_REGISTER_FOR_NOTIFICATIONS = "RegisterForNotifications";
     public static final String METHOD_UNREGISTER_FOR_NOTIFICATIONS = "UnregisterForNotifications";
-    public static final String METHOD_FETCH_SUBSCRIBERS = "FetchSubscribers";
-    public static final String METHOD_RESET = "Reset";
+    public static final String METHOD_RESOLVE_URI = "ResolveUri";
 
-    private USubscription() {
-    }
+    private UDiscovery() {}
 
-    public static String getServiceName() {
-        return "core.usubscription";
-    }
-
-    public static int getServiceVersion() {
-        return 3;
-    }
-
-    public static Stub newStub(RpcClient proxy) {
+    public static UDiscovery.Stub newStub(RpcClient proxy) {
         return newStub(proxy, null, CallOptions.DEFAULT);
     }
 
-    public static Stub newStub(RpcClient proxy, CallOptions options) {
+    public static UDiscovery.Stub newStub(RpcClient proxy, CallOptions options) {
         return newStub(proxy, null, options);
     }
 
-    public static Stub newStub(RpcClient proxy, UAuthority authority, CallOptions options) {
-        return new Stub(proxy, authority, options);
+    public static UDiscovery.Stub newStub(RpcClient proxy, UAuthority authority, CallOptions options) {
+        return new UDiscovery.Stub(proxy, authority, options);
     }
 
     public static class Stub {
@@ -105,24 +96,32 @@ public class USubscription {
             return options;
         }
 
-        public CompletionStage<SubscriptionResponse> subscribe(SubscriptionRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_SUBSCRIBE), packToAny(request), options), SubscriptionResponse.class);
+        public CompletionStage<LookupUriResponse> lookupUri(UUri request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_LOOKUP_URI), packToAny(request), options), LookupUriResponse.class);
         }
 
-        public CompletionStage<UStatus> unsubscribe(UnsubscribeRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_UNSUBSCRIBE), packToAny(request), options), UStatus.class);
+        public CompletionStage<UStatus> updateNode(UpdateNodeRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_UPDATE_NODE), packToAny(request), options), UStatus.class);
         }
 
-        public CompletionStage<FetchSubscriptionsResponse> fetchSubscriptions(FetchSubscriptionsRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_FETCH_SUBSCRIPTIONS), packToAny(request), options), FetchSubscriptionsResponse.class);
+        public CompletionStage<FindNodesResponse> findNodes(FindNodesRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_FIND_NODES), packToAny(request), options), FindNodesResponse.class);
         }
 
-        public CompletionStage<UStatus> createTopic(CreateTopicRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_CREATE_TOPIC), packToAny(request), options), UStatus.class);
+        public CompletionStage<FindNodePropertiesResponse> findNodeProperties(FindNodePropertiesRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_FIND_NODE_PROPERTIES), packToAny(request), options), FindNodePropertiesResponse.class);
         }
 
-        public CompletionStage<UStatus> deprecateTopic(DeprecateTopicRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_DEPRECATE_TOPIC), packToAny(request), options), UStatus.class);
+        public CompletionStage<UStatus> deleteNodes(DeleteNodesRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_DELETE_NODES), packToAny(request), options), UStatus.class);
+        }
+
+        public CompletionStage<UStatus> addNodes(AddNodesRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_ADD_NODES), packToAny(request), options), UStatus.class);
+        }
+
+        public CompletionStage<UStatus> updateProperty(UpdatePropertyRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_UPDATE_PROPERTY), packToAny(request), options), UStatus.class);
         }
 
         public CompletionStage<UStatus> registerForNotifications(NotificationsRequest request) {
@@ -133,12 +132,8 @@ public class USubscription {
             return mapResponse(proxy.invokeMethod(buildUri(METHOD_UNREGISTER_FOR_NOTIFICATIONS), packToAny(request), options), UStatus.class);
         }
 
-        public CompletionStage<FetchSubscribersResponse> fetchSubscribers(FetchSubscribersRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_FETCH_SUBSCRIBERS), packToAny(request), options), FetchSubscribersResponse.class);
-        }
-
-        public CompletionStage<UStatus> reset(ResetRequest request) {
-            return mapResponse(proxy.invokeMethod(buildUri(METHOD_RESET), packToAny(request), options), UStatus.class);
+        public CompletionStage<ResolveUriResponse> resolveUri(ResolveUriRequest request) {
+            return mapResponse(proxy.invokeMethod(buildUri(METHOD_RESOLVE_URI), packToAny(request), options), ResolveUriResponse.class);
         }
     }
 }

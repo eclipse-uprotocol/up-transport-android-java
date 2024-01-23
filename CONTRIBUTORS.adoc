@@ -1,6 +1,6 @@
 = Eclipse uProtocol Contributors
 
-These are the major contributors to Eclipse uLink Java Library for Android Binder Transport
+These are the major contributors to Eclipse uPClient Java Library for Android Binder Transport
 
 |===
 | GitHub username | Name

@@ -25,7 +25,7 @@ package org.eclipse.uprotocol.core.ubus;
 
 import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
-import static org.eclipse.uprotocol.core.ubus.UBusClient.ACTION_BIND_UBUS;
+import static org.eclipse.uprotocol.core.ubus.UBusManager.ACTION_BIND_UBUS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -74,7 +74,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 @RunWith(AndroidJUnit4.class)
-public class UBusClientTest extends TestBase {
+public class UBusManagerTest extends TestBase {
     private static final String SERVICE_PACKAGE = "org.eclipse.uprotocol.core.ubus";
     private static final ComponentName SERVICE = new ComponentName(SERVICE_PACKAGE, SERVICE_PACKAGE + ".UBusService");
     private static final UMessage MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD, buildPublishAttributes());
@@ -83,7 +83,7 @@ public class UBusClientTest extends TestBase {
     private Context mContext;
     private ConnectionCallback mConnectionCallback;
     private UListener mListener;
-    private UBusClient mClient;
+    private UBusManager mManager;
     private ServiceConnection mServiceConnection;
     private IBinder mServiceBinder;
     private IUBus mService;
@@ -94,8 +94,8 @@ public class UBusClientTest extends TestBase {
         mConnectionCallback = mock(ConnectionCallback.class);
         mListener = mock(UListener.class);
         setServiceConfig(SERVICE_PACKAGE);
-        mClient = new UBusClient(mContext, CLIENT, mConnectionCallback, mListener);
-        mClient.setLoggable(Log.INFO);
+        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        mManager.setLoggable(Log.INFO);
         prepareService();
     }
 
@@ -130,7 +130,7 @@ public class UBusClientTest extends TestBase {
 
     private void assertDisconnected() {
         verify(mConnectionCallback, timeout(DELAY_MS).times(1)).onDisconnected();
-        assertTrue(mClient.isDisconnected());
+        assertTrue(mManager.isDisconnected());
     }
 
     private void assertDisconnected(@NonNull CompletableFuture<UStatus> disconnectionFuture) {
@@ -140,12 +140,12 @@ public class UBusClientTest extends TestBase {
 
     private void assertConnecting() {
         verify(mContext, timeout(DELAY_MS).atLeast(1)).bindService(any(), any(), anyInt());
-        assertTrue(mClient.isConnecting());
+        assertTrue(mManager.isConnecting());
     }
 
     private void assertConnected() {
         verify(mConnectionCallback, timeout(DELAY_MS).times(1)).onConnected();
-        assertTrue(mClient.isConnected());
+        assertTrue(mManager.isConnected());
     }
 
     private void assertConnected(@NonNull CompletableFuture<UStatus> connectionFuture) {
@@ -156,17 +156,17 @@ public class UBusClientTest extends TestBase {
     private void assertConnectionFailed(@NonNull CompletableFuture<UStatus> connectionFuture, @NonNull UCode code) {
         assertStatus(code, getOrThrow(connectionFuture));
         verify(mConnectionCallback, timeout(DELAY_MS).times(0)).onConnected();
-        assertTrue(mClient.isDisconnected());
+        assertTrue(mManager.isDisconnected());
     }
 
     private void assertConnectionInterrupted() {
         verify(mConnectionCallback, timeout(DELAY_MS).times(1)).onConnectionInterrupted();
-        assertTrue(mClient.isDisconnected());
+        assertTrue(mManager.isDisconnected());
     }
 
     @Test
     public void testConnect() {
-        assertConnected(mClient.connect());
+        assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
             assertEquals(SERVICE_PACKAGE, intent.getPackage());
@@ -178,8 +178,8 @@ public class UBusClientTest extends TestBase {
     public void testConnectWithConfiguredPackage() {
         final String packageName = "some.package";
         setServiceConfig(packageName);
-        mClient = new UBusClient(mContext, CLIENT, mConnectionCallback, mListener);
-        assertConnected(mClient.connect());
+        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
             assertEquals(packageName, intent.getPackage());
@@ -190,8 +190,8 @@ public class UBusClientTest extends TestBase {
     @Test
     public void testConnectWithConfiguredComponent() {
         setServiceConfig(SERVICE.flattenToShortString());
-        mClient = new UBusClient(mContext, CLIENT, mConnectionCallback, mListener);
-        assertConnected(mClient.connect());
+        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
             assertEquals(SERVICE, intent.getComponent());
@@ -202,8 +202,8 @@ public class UBusClientTest extends TestBase {
     @Test
     public void testConnectWithEmptyConfig() {
         setServiceConfig("");
-        mClient = new UBusClient(mContext, CLIENT, mConnectionCallback, mListener);
-        assertConnected(mClient.connect());
+        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
             assertNull(intent.getPackage());
@@ -214,7 +214,7 @@ public class UBusClientTest extends TestBase {
     @Test
     public void testConnectNoService() {
         prepareService(false, connection -> {});
-        assertConnectionFailed(mClient.connect(), UCode.NOT_FOUND);
+        assertConnectionFailed(mManager.connect(), UCode.NOT_FOUND);
     }
 
     @Test
@@ -223,41 +223,41 @@ public class UBusClientTest extends TestBase {
             mServiceConnection = connection;
             mServiceConnection.onNullBinding(SERVICE);
         });
-        assertConnectionFailed(mClient.connect(), UCode.NOT_FOUND);
+        assertConnectionFailed(mManager.connect(), UCode.NOT_FOUND);
     }
 
     @Test
     public void testConnectPermissionDenied() {
         prepareService(true, connection -> { throw new SecurityException("Permission denied"); });
-        assertConnectionFailed(mClient.connect(), UCode.PERMISSION_DENIED);
+        assertConnectionFailed(mManager.connect(), UCode.PERMISSION_DENIED);
     }
 
     @Test
     public void testConnectUnauthenticated() throws RemoteException {
         doReturn(new ParcelableUStatus(buildStatus(UCode.UNAUTHENTICATED)))
                 .when(mService).registerClient(any(), any(), any(), anyInt(), any());
-        assertConnectionFailed(mClient.connect(), UCode.UNAUTHENTICATED);
+        assertConnectionFailed(mManager.connect(), UCode.UNAUTHENTICATED);
     }
 
     @Test
     public void testConnectExceptionally() throws RemoteException {
         doThrow(new UStatusException(UCode.INTERNAL, "Failure"))
                 .when(mService).registerClient(any(), any(), any(), anyInt(), any());
-        assertConnectionFailed(mClient.connect(), UCode.INTERNAL);
+        assertConnectionFailed(mManager.connect(), UCode.INTERNAL);
     }
 
     @Test
     public void testConnectAlreadyConnected() {
-        mClient.setLoggable(Log.DEBUG);
+        mManager.setLoggable(Log.DEBUG);
         testConnect();
-        assertConnected(mClient.connect());
+        assertConnected(mManager.connect());
     }
 
     @Test
     public void testConnectAlreadyConnecting() {
         prepareService(true, connection -> mServiceConnection = connection);
-        final CompletableFuture<UStatus> future1 = mClient.connect();
-        final CompletableFuture<UStatus> future2 = mClient.connect();
+        final CompletableFuture<UStatus> future1 = mManager.connect();
+        final CompletableFuture<UStatus> future2 = mManager.connect();
         assertConnecting();
         mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
         assertConnected(future1);
@@ -266,20 +266,20 @@ public class UBusClientTest extends TestBase {
 
     @Test
     public void testConnectOnServiceConnectedWithSameInstance() {
-        assertConnected(mClient.connect());
+        assertConnected(mManager.connect());
         mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
         assertConnected();
     }
 
     @Test
     public void testConnectOnServiceConnectedWithSameInstanceDebug() {
-        mClient.setLoggable(Log.DEBUG);
+        mManager.setLoggable(Log.DEBUG);
         testConnectOnServiceConnectedWithSameInstance();
     }
 
     @Test
     public void testConnectOnServiceConnectedWithOtherInstance() throws RemoteException {
-        assertConnected(mClient.connect());
+        assertConnected(mManager.connect());
         sleep(DELAY_MS);
         prepareService();
         mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
@@ -289,28 +289,28 @@ public class UBusClientTest extends TestBase {
     @Test
     public void testDisconnect() {
         testConnect();
-        assertDisconnected(mClient.disconnect());
+        assertDisconnected(mManager.disconnect());
     }
 
     @Test
     public void testDisconnectAlreadyDisconnected() {
         testDisconnect();
-        assertDisconnected(mClient.disconnect());
+        assertDisconnected(mManager.disconnect());
     }
 
     @Test
     public void testDisconnectWhileConnecting() {
         prepareService(true, connection -> mServiceConnection = connection);
-        final CompletableFuture<UStatus> future = mClient.connect();
+        final CompletableFuture<UStatus> future = mManager.connect();
         assertConnecting();
-        assertDisconnected(mClient.disconnect());
+        assertDisconnected(mManager.disconnect());
         mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
         assertConnectionFailed(future, UCode.CANCELLED);
     }
 
     @Test
     public void testDisconnectWhileConnectingVerbose() {
-        mClient.setLoggable(Log.VERBOSE);
+        mManager.setLoggable(Log.VERBOSE);
         testDisconnectWhileConnecting();
     }
 
@@ -318,7 +318,7 @@ public class UBusClientTest extends TestBase {
     public void testDisconnectExceptionally() throws RemoteException {
         testConnect();
         doThrow(new UStatusException(UCode.INTERNAL, "Failure")).when(mService).unregisterClient(any());
-        assertDisconnected(mClient.disconnect());
+        assertDisconnected(mManager.disconnect());
     }
 
     @Test
@@ -337,7 +337,7 @@ public class UBusClientTest extends TestBase {
 
     @Test
     public void testOnServiceDisconnectedAlreadyDisconnectedDebug() {
-        mClient.setLoggable(Log.DEBUG);
+        mManager.setLoggable(Log.DEBUG);
         testOnServiceDisconnectedAlreadyDisconnected();
     }
 
@@ -359,7 +359,7 @@ public class UBusClientTest extends TestBase {
 
     @Test
     public void testOnBindingDiedNotConnectedDebug() {
-        mClient.setLoggable(Log.DEBUG);
+        mManager.setLoggable(Log.DEBUG);
         testOnBindingDiedNotConnected();
     }
 
@@ -369,12 +369,12 @@ public class UBusClientTest extends TestBase {
         mServiceConnection.onBindingDied(SERVICE);
         verify(mContext, timeout(REBIND_DELAY_MS).times(0)).unbindService(any());
         verify(mContext, times(1)).bindService(any(), any(), anyInt());
-        assertTrue(mClient.isConnected());
+        assertTrue(mManager.isConnected());
     }
 
     @Test
     public void testOnBindingDiedAlreadyReconnectedDebug() {
-        mClient.setLoggable(Log.DEBUG);
+        mManager.setLoggable(Log.DEBUG);
         testOnBindingDiedAlreadyReconnected();
     }
 
@@ -385,76 +385,76 @@ public class UBusClientTest extends TestBase {
         mServiceConnection.onBindingDied(SERVICE);
         verify(mContext, timeout(REBIND_DELAY_MS).times(1)).unbindService(any());
         verify(mContext, times(2)).bindService(any(), any(), anyInt());
-        assertTrue(mClient.isDisconnected());
+        assertTrue(mManager.isDisconnected());
     }
 
     @Test
     public void testConnectionStates() {
         prepareService(true, connection -> mServiceConnection = connection);
-        mClient.connect();
+        mManager.connect();
         assertConnecting();
-        assertFalse(mClient.isDisconnected());
-        assertFalse(mClient.isConnected());
+        assertFalse(mManager.isDisconnected());
+        assertFalse(mManager.isConnected());
         mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
         assertConnected();
-        assertFalse(mClient.isDisconnected());
-        assertFalse(mClient.isConnecting());
-        mClient.disconnect();
+        assertFalse(mManager.isDisconnected());
+        assertFalse(mManager.isConnecting());
+        mManager.disconnect();
         assertDisconnected();
-        assertFalse(mClient.isConnecting());
-        assertFalse(mClient.isConnected());
+        assertFalse(mManager.isConnecting());
+        assertFalse(mManager.isConnected());
     }
 
     @Test
     public void testCalculateRebindDelaySeconds() {
         List.of(1L, 2L, 4L, 8L, 16L, 32L, 32L, 32L)
-                .forEach(expected -> assertEquals((long) expected, mClient.calculateRebindDelaySeconds()));
+                .forEach(expected -> assertEquals((long) expected, mManager.calculateRebindDelaySeconds()));
     }
 
     @Test
     public void testEnableDispatching() throws RemoteException {
         testConnect();
-        assertStatus(UCode.OK, mClient.enableDispatching(RESOURCE_URI));
+        assertStatus(UCode.OK, mManager.enableDispatching(RESOURCE_URI));
         verify(mService, times(1)).enableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
     }
 
     @Test
     public void testEnableDispatchingDisconnected() throws RemoteException {
-        assertStatus(UCode.UNAVAILABLE, mClient.enableDispatching(RESOURCE_URI));
+        assertStatus(UCode.UNAVAILABLE, mManager.enableDispatching(RESOURCE_URI));
         verify(mService, never()).enableDispatching(any(), any(), any());
     }
 
     @Test
     public void testDisableDispatching() throws RemoteException {
         testConnect();
-        assertStatus(UCode.OK, mClient.disableDispatching(RESOURCE_URI));
+        assertStatus(UCode.OK, mManager.disableDispatching(RESOURCE_URI));
         verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnected() throws RemoteException {
-        assertStatus(UCode.UNAVAILABLE, mClient.disableDispatching(RESOURCE_URI));
+        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
         verify(mService, never()).disableDispatching(any(), any(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnectedDebug() throws RemoteException {
-        mClient.setLoggable(Log.DEBUG);
-        assertStatus(UCode.UNAVAILABLE, mClient.disableDispatching(RESOURCE_URI));
+        mManager.setLoggable(Log.DEBUG);
+        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
         verify(mService, never()).disableDispatching(any(), any(), any());
     }
 
     @Test
     public void testDisableDispatchingQuietly() throws RemoteException {
         testConnect();
-        mClient.disableDispatchingQuietly(RESOURCE_URI);
+        mManager.disableDispatchingQuietly(RESOURCE_URI);
         verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
     }
 
     @Test
     public void testGetLastMessage() throws RemoteException {
         testConnect();
-        assertEquals(MESSAGE, mClient.getLastMessage(RESOURCE_URI));
+        assertEquals(MESSAGE, mManager.getLastMessage(RESOURCE_URI));
         verify(mService, times(1)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), any(), any());
     }
 
@@ -462,9 +462,9 @@ public class UBusClientTest extends TestBase {
     public void testGetLastMessageNotAvailable() throws RemoteException {
         testConnect();
         doReturn(new ParcelableUMessage[0]).when(mService).pull(any(), anyInt(), any(), any());
-        assertNull(mClient.getLastMessage(RESOURCE_URI));
+        assertNull(mManager.getLastMessage(RESOURCE_URI));
         doReturn(null).when(mService).pull(any(), anyInt(), any(), any());
-        assertNull(mClient.getLastMessage(RESOURCE_URI));
+        assertNull(mManager.getLastMessage(RESOURCE_URI));
         verify(mService, times(2)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), any(), any());
     }
 
@@ -473,25 +473,25 @@ public class UBusClientTest extends TestBase {
     public void testGetLastMessageInvalidArgument() throws RemoteException {
         testConnect();
         doThrow(new NullPointerException()).when(mService).pull(any(), anyInt(), any(), any());
-        assertNull(mClient.getLastMessage(null));
+        assertNull(mManager.getLastMessage(null));
     }
 
     @Test
     public void testGetLastMessageDisconnected() throws RemoteException {
-        assertNull(mClient.getLastMessage(RESOURCE_URI));
+        assertNull(mManager.getLastMessage(RESOURCE_URI));
         verify(mService, never()).pull(any(), anyInt(), any(), any());
     }
 
     @Test
     public void testSend() throws RemoteException {
         testConnect();
-        assertStatus(UCode.OK, mClient.send(MESSAGE));
+        assertStatus(UCode.OK, mManager.send(MESSAGE));
         verify(mService, times(1)).send(eq(new ParcelableUMessage(MESSAGE)), any());
     }
 
     @Test
     public void testSendDisconnected() throws RemoteException {
-        assertStatus(UCode.UNAVAILABLE, mClient.send(MESSAGE));
+        assertStatus(UCode.UNAVAILABLE, mManager.send(MESSAGE));
         verify(mService, never()).send(any(), any());
     }
 

@@ -25,7 +25,7 @@ package org.eclipse.uprotocol.core.ubus;
 
 import static android.content.Context.BIND_AUTO_CREATE;
 
-import static org.eclipse.uprotocol.ULink.TAG_GROUP;
+import static org.eclipse.uprotocol.UPClient.TAG_GROUP;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.checkNotNull;
@@ -77,7 +77,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-public final class UBusClient {
+public final class UBusManager {
     public static final String ACTION_BIND_UBUS = "uprotocol.action.BIND_UBUS";
 
     private static final int REBIND_BACKOFF_EXPONENT_MAX = 5;
@@ -222,11 +222,11 @@ public final class UBusClient {
         }
     };
 
-    public UBusClient(@NonNull Context context, @NonNull UEntity entity, @NonNull ConnectionCallback connectionCallback,
+    public UBusManager(@NonNull Context context, @NonNull UEntity entity, @NonNull ConnectionCallback callback,
             @NonNull UListener listener) {
         mContext = requireNonNull(context);
         mEntity = requireNonNull(entity);
-        mConnectionCallback = requireNonNull(connectionCallback);
+        mConnectionCallback = requireNonNull(callback);
         mListener = requireNonNull(listener);
         mServiceConfig = mContext.getString(R.string.config_UBusService);
         mTag = tag(entity.getName(), TAG_GROUP);

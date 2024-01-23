@@ -59,7 +59,7 @@ import org.eclipse.uprotocol.client.BuildConfig;
 import org.eclipse.uprotocol.common.UStatusException;
 import org.eclipse.uprotocol.common.util.log.Key;
 import org.eclipse.uprotocol.core.ubus.ConnectionCallback;
-import org.eclipse.uprotocol.core.ubus.UBusClient;
+import org.eclipse.uprotocol.core.ubus.UBusManager;
 import org.eclipse.uprotocol.internal.HandlerExecutor;
 import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
@@ -99,8 +99,8 @@ import java.util.stream.Stream;
  * receiving messages, and invoking RPC methods.
  */
 @SuppressWarnings({"java:S1192", "java:S3398", "java:S6539"})
-public final class ULink implements UTransport, RpcServer, RpcClient {
-    public static final String TAG_GROUP = "uLink";
+public final class UPClient implements UTransport, RpcServer, RpcClient {
+    public static final String TAG_GROUP = "uPClient";
 
     /**
      * The permission necessary to connect to the uBus.
@@ -131,9 +131,9 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
     private static final String MESSAGE_RECEIVED = "Message received";
     private static final String MESSAGE_DROPPED = "Message dropped";
 
-    private final UUri mClientUri;
+    private final UUri mUri;
     private final UUri mResponseUri;
-    private final UBusClient mClient;
+    private final UBusManager mUBusManager;
     private final Executor mCallbackExecutor;
     private final ServiceLifecycleListener mServiceLifecycleListener;
 
@@ -154,7 +154,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
         public void onConnected() {
             mCallbackExecutor.execute(() -> {
                 renewRegistration();
-                mServiceLifecycleListener.onLifecycleChanged(ULink.this, true);
+                mServiceLifecycleListener.onLifecycleChanged(UPClient.this, true);
             });
         }
 
@@ -162,7 +162,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
         public void onDisconnected() {
             mCallbackExecutor.execute(() -> {
                 release();
-                mServiceLifecycleListener.onLifecycleChanged(ULink.this, false);
+                mServiceLifecycleListener.onLifecycleChanged(UPClient.this, false);
             });
         }
 
@@ -170,7 +170,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
         public void onConnectionInterrupted() {
             mCallbackExecutor.execute(() -> {
                 setRegistrationExpired();
-                mServiceLifecycleListener.onLifecycleChanged(ULink.this, false);
+                mServiceLifecycleListener.onLifecycleChanged(UPClient.this, false);
             });
         }
     };
@@ -191,35 +191,35 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * Callback to notify the lifecycle of the uBus.
      *
      * <p>Access to the uBus should happen
-     * after {@link ServiceLifecycleListener#onLifecycleChanged(ULink, boolean)} call with
+     * after {@link ServiceLifecycleListener#onLifecycleChanged(UPClient, boolean)} call with
      * {@code ready} set {@code true}.
      */
     public interface ServiceLifecycleListener {
         /**
          * The uBus has gone through status change.
          *
-         * @param link  A {@link ULink} object that was originally associated with this
-         *              listener from {@link #create(Context, Handler, ServiceLifecycleListener)} call.
-         * @param ready When {@code true}, the uBus is ready and all accesses are ok.
-         *              Otherwise it has crashed or killed and will be restarted.
+         * @param client A {@link UPClient} object that was originally associated with this
+         *               listener from {@link #create(Context, Handler, ServiceLifecycleListener)} call.
+         * @param ready  When {@code true}, the uBus is ready and all accesses are ok.
+         *               Otherwise it has crashed or killed and will be restarted.
          */
-        void onLifecycleChanged(@NonNull ULink link, boolean ready);
+        void onLifecycleChanged(@NonNull UPClient client, boolean ready);
     }
 
     @VisibleForTesting
-    ULink(@NonNull Context context, @Nullable UEntity entity, @Nullable UBusClient client, @Nullable Executor executor,
-            @Nullable ServiceLifecycleListener listener) {
+    UPClient(@NonNull Context context, @Nullable UEntity entity, @Nullable UBusManager manager,
+            @Nullable Executor executor, @Nullable ServiceLifecycleListener listener) {
         checkNonNullContext(context);
         entity = checkContainsEntity(getPackageInfo(context), entity);
-        mClientUri = UUri.newBuilder()
+        mUri = UUri.newBuilder()
                 .setEntity(entity)
                 .build();
-        mResponseUri = UUri.newBuilder(mClientUri)
+        mResponseUri = UUri.newBuilder(mUri)
                 .setResource(UResourceBuilder.forRpcResponse())
                 .build();
-        mClient = ofNullable(client).orElse(new UBusClient(context, entity, mConnectionCallback, mListener));
+        mUBusManager = ofNullable(manager).orElse(new UBusManager(context, entity, mConnectionCallback, mListener));
         mCallbackExecutor = ofNullable(executor).orElse(context.getMainExecutor());
-        mServiceLifecycleListener = ofNullable(listener).orElse((link, ready) -> {});
+        mServiceLifecycleListener = ofNullable(listener).orElse((client, ready) -> {});
 
         mTag = tag(entity.getName(), TAG_GROUP);
         mVerboseLoggable = Log.isLoggable(mTag, Log.VERBOSE);
@@ -289,19 +289,19 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @param handler  A {@link Handler} on which callbacks should execute, or {@code null} to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
-     * @return A {@link ULink} instance.
+     * @return A {@link UPClient} instance.
      * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
      *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      * @see #META_DATA_ENTITY_NAME
      * @see #META_DATA_ENTITY_VERSION
      */
-    public static @NonNull ULink create(@NonNull Context context, @Nullable Handler handler,
+    public static @NonNull UPClient create(@NonNull Context context, @Nullable Handler handler,
             @Nullable ServiceLifecycleListener listener) {
-        return new ULink(context, null, null, new HandlerExecutor(handler), listener);
+        return new UPClient(context, null, null, new HandlerExecutor(handler), listener);
     }
 
     /**
-     * Create an instance for a specified client (uEntity).
+     * Create an instance for a specified uEntity.
      *
      * @param context  An application {@link Context}. This should not be {@code null}. If you are passing
      *                 {@link ContextWrapper}, make sure that its base Context is non-null as well.
@@ -312,15 +312,15 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @param handler  A {@link Handler} on which callbacks should execute, or {@code null} to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
-     * @return A {@link ULink} instance.
+     * @return A {@link UPClient} instance.
      * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
      *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      * @see #META_DATA_ENTITY_NAME
      * @see #META_DATA_ENTITY_VERSION
      */
-    public static @NonNull ULink create(@NonNull Context context, @Nullable UEntity entity,
+    public static @NonNull UPClient create(@NonNull Context context, @Nullable UEntity entity,
             @Nullable Handler handler, @Nullable ServiceLifecycleListener listener) {
-        return new ULink(context, entity, null, new HandlerExecutor(handler), listener);
+        return new UPClient(context, entity, null, new HandlerExecutor(handler), listener);
     }
 
     /**
@@ -332,15 +332,15 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @param executor An {@link Executor} on which callbacks should execute, or {@code null} to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
-     * @return A {@link ULink} instance.
+     * @return A {@link UPClient} instance.
      * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
      *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      * @see #META_DATA_ENTITY_NAME
      * @see #META_DATA_ENTITY_VERSION
      */
-    public static @NonNull ULink create(@NonNull Context context, @Nullable Executor executor,
+    public static @NonNull UPClient create(@NonNull Context context, @Nullable Executor executor,
             @Nullable ServiceLifecycleListener listener) {
-        return new ULink(context, null, null, executor, listener);
+        return new UPClient(context, null, null, executor, listener);
     }
 
     /**
@@ -355,15 +355,15 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @param executor An {@link Executor} on which callbacks should execute, or {@code null} to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
-     * @return A {@link ULink} instance.
+     * @return A {@link UPClient} instance.
      * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
      *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      * @see #META_DATA_ENTITY_NAME
      * @see #META_DATA_ENTITY_VERSION
      */
-    public static @NonNull ULink create(@NonNull Context context, @Nullable UEntity entity,
+    public static @NonNull UPClient create(@NonNull Context context, @Nullable UEntity entity,
             @Nullable Executor executor, @Nullable ServiceLifecycleListener listener) {
-        return new ULink(context, entity, null, executor, listener);
+        return new UPClient(context, entity, null, executor, listener);
     }
 
     /**
@@ -377,7 +377,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @return A {@link CompletionStage<UStatus>} used by a caller to receive the connection status.
      */
     public @NonNull CompletionStage<UStatus> connect() {
-        return mClient.connect();
+        return mUBusManager.connect();
     }
 
     /**
@@ -388,7 +388,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @return A {@link CompletionStage<UStatus>} used by a caller to receive the disconnection status.
      */
     public @NonNull CompletionStage<UStatus> disconnect() {
-        return mClient.disconnect();
+        return mUBusManager.disconnect();
     }
 
     /**
@@ -397,7 +397,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @return {@code true} if it is disconnected.
      */
     public boolean isDisconnected() {
-        return mClient.isDisconnected();
+        return mUBusManager.isDisconnected();
     }
 
     /**
@@ -406,7 +406,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @return {@code true} if it is connecting.
      */
     public boolean isConnecting() {
-        return mClient.isConnecting();
+        return mUBusManager.isConnecting();
     }
 
     /**
@@ -416,7 +416,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
      * @return {@code true} if is is connected.
      */
     public boolean isConnected() {
-        return mClient.isConnected();
+        return mUBusManager.isConnected();
     }
 
     private void setRegistrationExpired() {
@@ -428,8 +428,8 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
     private void renewRegistration() {
         synchronized (mRegistrationLock) {
             if (mRegistrationExpired) {
-                mRequestListeners.keySet().forEach(mClient::enableDispatching);
-                mListeners.keySet().forEach(mClient::enableDispatching);
+                mRequestListeners.keySet().forEach(mUBusManager::enableDispatching);
+                mListeners.keySet().forEach(mUBusManager::enableDispatching);
                 mRegistrationExpired = false;
             }
         }
@@ -447,21 +447,21 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
     }
 
     /**
-     * Get a client (uEntity) who is holding this instance.
+     * Get a uEntity associated with this instance.
      *
      * @return A {@link UEntity}.
      */
     public @NonNull UEntity getEntity() {
-        return mClientUri.getEntity();
+        return mUri.getEntity();
     }
 
     /**
-     * Get a URI of a client who is holding this instance.
+     * Get a URI associated with this instance.
      *
      * @return A {@link UUri}.
      */
-    public @NonNull UUri getClientUri() {
-        return mClientUri;
+    public @NonNull UUri getUri() {
+        return mUri;
     }
 
     @VisibleForTesting
@@ -500,12 +500,12 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
 
     @Override
     public @NonNull UStatus send(@NonNull UUri source, @NonNull UPayload payload, @NonNull UAttributes attributes) {
-        return mClient.send(buildMessage(source, payload, attributes));
+        return mUBusManager.send(buildMessage(source, payload, attributes));
     }
 
     @Override
     public @NonNull UStatus send(@NonNull UMessage message) {
-        return mClient.send(message);
+        return mUBusManager.send(message);
     }
 
     @Override
@@ -519,7 +519,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
                     listeners = new HashSet<>();
                 }
                 if (listeners.isEmpty()) {
-                    final UStatus status = mClient.enableDispatching(topic);
+                    final UStatus status = mUBusManager.enableDispatching(topic);
                     if (!isOk(status)) {
                         return status;
                     }
@@ -527,7 +527,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
                 }
                 if (listeners.add(listener) && listeners.size() > 1) {
                     mCallbackExecutor.execute(() -> {
-                        final UMessage event = mClient.getLastMessage(topic);
+                        final UMessage event = mUBusManager.getLastMessage(topic);
                         if (event != null) {
                             listener.onReceive(event);
                         }
@@ -582,7 +582,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
             listeners.remove(listener);
             if (listeners.isEmpty()) {
                 // No listener left for this topic
-                mClient.disableDispatchingQuietly(topic);
+                mUBusManager.disableDispatchingQuietly(topic);
                 return true; // The entry MUST be removed
             }
         }
@@ -600,7 +600,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
                     return STATUS_OK;
                 }
                 checkArgument(currentListener == null, UCode.ALREADY_EXISTS, "Listener is already registered");
-                final UStatus status = mClient.enableDispatching(methodUri);
+                final UStatus status = mUBusManager.enableDispatching(methodUri);
                 if (isOk(status)) {
                     mRequestListeners.put(methodUri, listener);
                 }
@@ -618,7 +618,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 if (mRequestListeners.remove(methodUri, listener)) {
-                    mClient.disableDispatchingQuietly(methodUri);
+                    mUBusManager.disableDispatchingQuietly(methodUri);
                 }
                 return STATUS_OK;
             }
@@ -643,7 +643,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
                     if (mRequestListeners.get(methodUri) != listener) {
                         return false;
                     }
-                    mClient.disableDispatchingQuietly(methodUri);
+                    mUBusManager.disableDispatchingQuietly(methodUri);
                     return true;
                 });
                 return STATUS_OK;
@@ -712,7 +712,7 @@ public final class ULink implements UTransport, RpcServer, RpcClient {
     private void handleGenericMessage(@NonNull UMessage message) {
         if (message.getAttributes().hasSink()) {
             final UEntity entity = message.getAttributes().getSink().getEntity();
-            if (!entity.equals(mClientUri.getEntity())) {
+            if (!entity.equals(mUri.getEntity())) {
                 Log.w(mTag, join(Key.EVENT, MESSAGE_DROPPED, Key.MESSAGE, stringify(message), Key.REASON, "Wrong sink"));
                 return;
             }
