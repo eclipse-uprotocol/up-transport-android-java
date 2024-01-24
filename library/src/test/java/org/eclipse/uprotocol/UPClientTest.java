@@ -67,7 +67,6 @@ import com.google.protobuf.Int32Value;
 import org.eclipse.uprotocol.UPClient.ServiceLifecycleListener;
 import org.eclipse.uprotocol.common.UStatusException;
 import org.eclipse.uprotocol.core.ubus.UBusManager;
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.URpcListener;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
@@ -101,10 +100,6 @@ import java.util.concurrent.TimeoutException;
 @RunWith(AndroidJUnit4.class)
 public class UPClientTest extends TestBase {
     private static final UMessage MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD, buildPublishAttributes());
-    private static final CallOptions OPTIONS = CallOptions.newBuilder()
-            .withTimeout(TTL)
-            .withToken(TOKEN)
-            .build();
     private static final UPayload REQUEST_PAYLOAD = packToAny(Int32Value.newBuilder().setValue(1).build());
     private static final UPayload RESPONSE_PAYLOAD = packToAny(STATUS_OK);
 
@@ -352,6 +347,7 @@ public class UPClientTest extends TestBase {
     public void testRegisterListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(UUri.getDefaultInstance(), mListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(RESOURCE_URI, null));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(METHOD_URI, mListener));
         verify(mManager, never()).enableDispatching(RESOURCE_URI);
     }
 
@@ -415,6 +411,7 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("DataFlowIssue")
     public void testUnregisterListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(UUri.getDefaultInstance(), mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(METHOD_URI, mListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(RESOURCE_URI, null));
         verify(mManager, never()).disableDispatchingQuietly(RESOURCE_URI);
     }
@@ -557,6 +554,7 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("DataFlowIssue")
     public void testRegisterRpcListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(UUri.getDefaultInstance(), mRequestListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(RESOURCE_URI, mRequestListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(METHOD_URI, null));
         verify(mManager, never()).enableDispatching(METHOD_URI);
     }
@@ -612,6 +610,7 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("DataFlowIssue")
     public void testUnregisterRpcListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(UUri.getDefaultInstance(), mRequestListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(RESOURCE_URI, mRequestListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(METHOD_URI, null));
         verify(mManager, never()).disableDispatchingQuietly(METHOD_URI);
     }
@@ -734,7 +733,7 @@ public class UPClientTest extends TestBase {
         testRegisterRpcListener();
         redirectMessages(mManager, mClient);
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -751,7 +750,12 @@ public class UPClientTest extends TestBase {
         assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestMessage.getAttributes().getType());
         responseFutureCaptor.getValue().complete(RESPONSE_PAYLOAD);
 
-        assertEquals(RESPONSE_PAYLOAD, responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS));
+        final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        assertEquals(METHOD_URI, responseMessage.getSource());
+        assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
+        assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
+        assertEquals(requestMessage.getAttributes().getId(), responseMessage.getAttributes().getReqid());
     }
 
     @Test
@@ -772,7 +776,7 @@ public class UPClientTest extends TestBase {
         testRegisterRpcListener();
         redirectMessages(mManager, mClient);
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -790,7 +794,7 @@ public class UPClientTest extends TestBase {
         testRegisterRpcListener();
         redirectMessages(mManager, mClient);
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -810,7 +814,7 @@ public class UPClientTest extends TestBase {
         testRegisterRpcListener();
         redirectMessages(mManager, mClient);
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -828,7 +832,7 @@ public class UPClientTest extends TestBase {
         testRegisterRpcListener();
         redirectMessages(mManager, mClient);
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -836,7 +840,12 @@ public class UPClientTest extends TestBase {
                 ArgumentCaptor.forClass(CompletableFuture.class);
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), responseFutureCaptor.capture());
         responseFutureCaptor.getValue().completeExceptionally(new UStatusException(UCode.OK, "No error"));
-        assertEquals(UPayload.getDefaultInstance(), responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS));
+
+        final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        assertEquals(METHOD_URI, responseMessage.getSource());
+        assertEquals(UPayload.getDefaultInstance(), responseMessage.getPayload());
+        assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
     }
 
     @Test

@@ -27,10 +27,12 @@ import android.os.Parcel;
 
 import androidx.annotation.NonNull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.eclipse.uprotocol.v1.UMessage;
 
 /**
- * A parcelable wrapper for UMessage.
+ * A parcelable wrapper for {@link UMessage}.
  */
 public final class ParcelableUMessage extends ParcelableMessage<UMessage> {
 
@@ -53,27 +55,7 @@ public final class ParcelableUMessage extends ParcelableMessage<UMessage> {
     }
 
     @Override
-    protected void writeMessage(@NonNull Parcel out, int flags) {
-        out.writeParcelable(mMessage.hasSource() ? new ParcelableUUri(mMessage.getSource()) : null, flags);
-        out.writeParcelable(mMessage.hasAttributes() ? new ParcelableUAttributes(mMessage.getAttributes()) : null, flags);
-        out.writeParcelable(mMessage.hasPayload() ? new ParcelableUPayload(mMessage.getPayload()) : null, flags);
-    }
-
-    @Override
-    protected @NonNull UMessage readMessage(@NonNull Parcel in) {
-        final UMessage.Builder builder = UMessage.newBuilder();
-        final ParcelableUUri source = in.readParcelable(ParcelableUUri.class.getClassLoader());
-        if (source != null) {
-            builder.setSource(source.getWrapped());
-        }
-        final ParcelableUAttributes attributes = in.readParcelable(ParcelableUAttributes.class.getClassLoader());
-        if (attributes != null) {
-            builder.setAttributes(attributes.getWrapped());
-        }
-        final ParcelableUPayload payload = in.readParcelable(ParcelableUPayload.class.getClassLoader());
-        if (payload != null) {
-            builder.setPayload(payload.getWrapped());
-        }
-        return builder.build();
+    protected @NonNull UMessage parse(@NonNull byte[] data) throws InvalidProtocolBufferException {
+        return UMessage.parseFrom(data);
     }
 }

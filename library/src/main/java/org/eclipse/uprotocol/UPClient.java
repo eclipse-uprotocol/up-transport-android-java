@@ -37,6 +37,7 @@ import static org.eclipse.uprotocol.common.util.log.Formatter.stringify;
 import static org.eclipse.uprotocol.common.util.log.Formatter.tag;
 import static org.eclipse.uprotocol.transport.validate.UAttributesValidator.getValidator;
 import static org.eclipse.uprotocol.uri.validator.UriValidator.isEmpty;
+import static org.eclipse.uprotocol.uri.validator.UriValidator.isRpcMethod;
 
 import static java.util.Optional.ofNullable;
 
@@ -69,7 +70,7 @@ import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
 import org.eclipse.uprotocol.transport.validate.UAttributesValidator;
-import org.eclipse.uprotocol.uri.builder.UResourceBuilder;
+import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
 import org.eclipse.uprotocol.v1.UAttributes;
 import org.eclipse.uprotocol.v1.UCode;
 import org.eclipse.uprotocol.v1.UEntity;
@@ -100,6 +101,9 @@ import java.util.stream.Stream;
  */
 @SuppressWarnings({"java:S1192", "java:S3398", "java:S6539"})
 public final class UPClient implements UTransport, RpcServer, RpcClient {
+    /**
+     * The logging group tag used by this class and all sub-components.
+     */
     public static final String TAG_GROUP = "uPClient";
 
     /**
@@ -137,7 +141,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     private final Executor mCallbackExecutor;
     private final ServiceLifecycleListener mServiceLifecycleListener;
 
-    private final ConcurrentHashMap<UUID, CompletableFuture<UPayload>> mRequests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, CompletableFuture<UMessage>> mRequests = new ConcurrentHashMap<>();
     private final Object mRegistrationLock = new Object();
     @GuardedBy("mRegistrationLock")
     private final Map<UUri, URpcListener> mRequestListeners = new HashMap<>();
@@ -188,11 +192,11 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     };
 
     /**
-     * Callback to notify the lifecycle of the uBus.
+     * The callback to notify the lifecycle of the uBus.
      *
      * <p>Access to the uBus should happen
      * after {@link ServiceLifecycleListener#onLifecycleChanged(UPClient, boolean)} call with
-     * {@code ready} set {@code true}.
+     * <code>ready</code> set <code>true</code>.
      */
     public interface ServiceLifecycleListener {
         /**
@@ -200,7 +204,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
          *
          * @param client A {@link UPClient} object that was originally associated with this
          *               listener from {@link #create(Context, Handler, ServiceLifecycleListener)} call.
-         * @param ready  When {@code true}, the uBus is ready and all accesses are ok.
+         * @param ready  When <code>true</code>, the uBus is ready and all accesses are ok.
          *               Otherwise it has crashed or killed and will be restarted.
          */
         void onLifecycleChanged(@NonNull UPClient client, boolean ready);
@@ -283,17 +287,15 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Create an instance.
      *
-     * @param context  An application {@link Context}. This should not be {@code null}. If you are passing
+     * @param context  An application {@link Context}. This should not be <code>null</code>. If you are passing
      *                 {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                 Otherwise it will throw {@link NullPointerException}.
-     * @param handler  A {@link Handler} on which callbacks should execute, or {@code null} to execute on
+     * @param handler  A {@link Handler} on which callbacks should execute, or <code>null</code> to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
      * @return A {@link UPClient} instance.
-     * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
-     *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
-     * @see #META_DATA_ENTITY_NAME
-     * @see #META_DATA_ENTITY_VERSION
+     * @throws SecurityException If the caller does not have {@link #META_DATA_ENTITY_NAME} and
+     *         {@link #META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      */
     public static @NonNull UPClient create(@NonNull Context context, @Nullable Handler handler,
             @Nullable ServiceLifecycleListener listener) {
@@ -303,20 +305,18 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Create an instance for a specified uEntity.
      *
-     * @param context  An application {@link Context}. This should not be {@code null}. If you are passing
+     * @param context  An application {@link Context}. This should not be <code>null</code>. If you are passing
      *                 {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                 Otherwise it will throw {@link NullPointerException}.
-     * @param entity   A {@link UEntity} containing its name and major version, or {@code null} to use the
+     * @param entity   A {@link UEntity} containing its name and major version, or <code>null</code> to use the
      *                 first found declaration under <code>application</code> or <code>service</code> element
      *                 in a manifest.
-     * @param handler  A {@link Handler} on which callbacks should execute, or {@code null} to execute on
+     * @param handler  A {@link Handler} on which callbacks should execute, or <code>null</code> to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
      * @return A {@link UPClient} instance.
-     * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
-     *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
-     * @see #META_DATA_ENTITY_NAME
-     * @see #META_DATA_ENTITY_VERSION
+     * @throws SecurityException If the caller does not have {@link #META_DATA_ENTITY_NAME} and
+     *         {@link #META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      */
     public static @NonNull UPClient create(@NonNull Context context, @Nullable UEntity entity,
             @Nullable Handler handler, @Nullable ServiceLifecycleListener listener) {
@@ -326,17 +326,15 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Create an instance.
      *
-     * @param context  An application {@link Context}. This should not be {@code null}. If you are passing
+     * @param context  An application {@link Context}. This should not be <code>null</code>. If you are passing
      *                 {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                 Otherwise it will throw {@link NullPointerException}.
-     * @param executor An {@link Executor} on which callbacks should execute, or {@code null} to execute on
+     * @param executor An {@link Executor} on which callbacks should execute, or <code>null</code> to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
      * @return A {@link UPClient} instance.
-     * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
-     *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
-     * @see #META_DATA_ENTITY_NAME
-     * @see #META_DATA_ENTITY_VERSION
+     * @throws SecurityException If the caller does not have {@link #META_DATA_ENTITY_NAME} and
+     *         {@link #META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      */
     public static @NonNull UPClient create(@NonNull Context context, @Nullable Executor executor,
             @Nullable ServiceLifecycleListener listener) {
@@ -344,22 +342,20 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     }
 
     /**
-     * Create an instance.
+     * Create an instance for a specified uEntity.
      *
-     * @param context  An application {@link Context}. This should not be {@code null}. If you are passing
+     * @param context  An application {@link Context}. This should not be <code>null</code>. If you are passing
      *                 {@link ContextWrapper}, make sure that its base Context is non-null as well.
      *                 Otherwise it will throw {@link NullPointerException}.
-     * @param entity   A {@link UEntity} containing its name and major version, or {@code null} to use the
+     * @param entity   A {@link UEntity} containing its name and major version, or <code>null</code> to use the
      *                 first found declaration under <code>application</code> or <code>service</code> element
      *                 in a manifest.
-     * @param executor An {@link Executor} on which callbacks should execute, or {@code null} to execute on
+     * @param executor An {@link Executor} on which callbacks should execute, or <code>null</code> to execute on
      *                 the application's main thread.
      * @param listener A {@link ServiceLifecycleListener} for monitoring the uBus lifecycle.
      * @return A {@link UPClient} instance.
-     * @throws SecurityException If the caller does not have {@value META_DATA_ENTITY_NAME} and
-     *         {@value META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
-     * @see #META_DATA_ENTITY_NAME
-     * @see #META_DATA_ENTITY_VERSION
+     * @throws SecurityException If the caller does not have {@link #META_DATA_ENTITY_NAME} and
+     *         {@link #META_DATA_ENTITY_VERSION} <code>meta-data</code> elements declared in the manifest.
      */
     public static @NonNull UPClient create(@NonNull Context context, @Nullable UEntity entity,
             @Nullable Executor executor, @Nullable ServiceLifecycleListener listener) {
@@ -369,7 +365,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Connect to the uBus.
      *
-     * <p>Requires {@value #PERMISSION_ACCESS_UBUS} permission to access this API.
+     * <p>Requires {@link #PERMISSION_ACCESS_UBUS} permission to access this API.
      *
      * <p>An instance connected with this method should be disconnected from the uBus by calling
      * {@link #disconnect()} before the passed {@link Context} is released.
@@ -394,7 +390,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Check whether this instance is disconnected from the uBus or not.
      *
-     * @return {@code true} if it is disconnected.
+     * @return <code>true</code> if it is disconnected.
      */
     public boolean isDisconnected() {
         return mUBusManager.isDisconnected();
@@ -403,17 +399,17 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     /**
      * Check whether this instance is already connecting to the uBus or not.
      *
-     * @return {@code true} if it is connecting.
+     * @return <code>true</code> if it is connecting.
      */
     public boolean isConnecting() {
         return mUBusManager.isConnecting();
     }
 
     /**
-     * Check whether the uBus is connected or not. This will return {@code false} if it
+     * Check whether the uBus is connected or not. This will return <code>false</code> if it
      * is still connecting.
      *
-     * @return {@code true} if is is connected.
+     * @return <code>true</code> if is is connected.
      */
     public boolean isConnected() {
         return mUBusManager.isConnected();
@@ -498,20 +494,44 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         return builder.build();
     }
 
+    /**
+     * Transmit a payload associated with a source using defined attributes.
+     *
+     * @param source A {@link UUri} associated with a payload.
+     * @param payload A {@link UPayload} to be sent.
+     * @param attributes {@link UAttributes} containing transport attributes.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
     @Override
     public @NonNull UStatus send(@NonNull UUri source, @NonNull UPayload payload, @NonNull UAttributes attributes) {
         return mUBusManager.send(buildMessage(source, payload, attributes));
     }
 
+    /**
+     * Transmit a message.
+     *
+     * @param message A {@link UMessage} to be sent.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
     @Override
     public @NonNull UStatus send(@NonNull UMessage message) {
         return mUBusManager.send(message);
     }
 
+    /**
+     * Register a listener for a particular topic to be notified when a message with that topic is received.
+     *
+     * <p>In order to start receiving published data a client needs to subscribe to the topic.
+     *
+     * @param topic    A {@link UUri} associated with a topic.
+     * @param listener A {@link UListener} which needs to be registered.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
     @Override
     public @NonNull UStatus registerListener(@NonNull UUri topic, @NonNull UListener listener) {
         try {
             checkArgument(!isEmpty(topic), "Topic is empty");
+            checkArgument(!isRpcMethod(topic), "Topic matches the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 Set<UListener> listeners = mListeners.get(topic);
@@ -540,10 +560,20 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
+    /**
+     * Unregister a listener from a particular topic.
+     *
+     * <p>If this listener wasn't registered, nothing will happen.
+     *
+     * @param topic    A {@link UUri} associated with a topic.
+     * @param listener A {@link UListener} which needs to be unregistered.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
     @Override
     public @NonNull UStatus unregisterListener(@NonNull UUri topic, @NonNull UListener listener) {
         try {
             checkArgument(!isEmpty(topic), "Topic is empty");
+            checkArgument(!isRpcMethod(topic), "Topic matches the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 if (unregisterListenerLocked(topic, listener)) {
@@ -589,10 +619,19 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         return false;
     }
 
+    /**
+     * Register a listener for a particular method URI to be notified when requests are sent against said method.
+     *
+     * <p>Note: Only one listener is allowed to be registered per method URI.
+     *
+     * @param methodUri A {@link UUri} associated with a method.
+     * @param listener  A {@link URpcListener} which needs to be registered.
+     * @return A {@code Status} which contains a result code and other details.
+     */
     @Override
     public @NonNull UStatus registerRpcListener(@NonNull UUri methodUri, @NonNull URpcListener listener) {
         try {
-            checkArgument(!isEmpty(methodUri), "Method URI is empty");
+            checkArgument(isRpcMethod(methodUri), "URI doesn't match the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 final URpcListener currentListener = mRequestListeners.get(methodUri);
@@ -614,7 +653,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     @Override
     public @NonNull UStatus unregisterRpcListener(@NonNull UUri methodUri, @NonNull URpcListener listener) {
         try {
-            checkArgument(!isEmpty(methodUri), "Method URI is empty");
+            checkArgument(isRpcMethod(methodUri), "URI doesn't match the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 if (mRequestListeners.remove(methodUri, listener)) {
@@ -653,8 +692,16 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
+    /**
+     * Asynchronously invoke a method (send an RPC request) and receive a response.
+     *
+     * @param methodUri      A {@link UUri} associated with a method.
+     * @param requestPayload A {@link UPayload} to be supplied with a request.
+     * @param options        {@link CallOptions} containing various invocation parameters.
+     * @return A {@link CompletionStage<UMessage>} used by a caller to receive a response.
+     */
     @Override
-    public @NonNull CompletionStage<UPayload> invokeMethod(@NonNull UUri methodUri, @NonNull UPayload requestPayload,
+    public @NonNull CompletionStage<UMessage> invokeMethod(@NonNull UUri methodUri, @NonNull UPayload requestPayload,
             @NonNull CallOptions options) {
         try {
             checkArgument(!isEmpty(methodUri), "Method URI is empty");
@@ -678,10 +725,10 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
-    private @NonNull CompletableFuture<UPayload> buildClientResponseFuture(@NonNull UMessage requestMessage) {
-        final CompletableFuture<UPayload> responseFuture = new CompletableFuture<UPayload>()
+    private @NonNull CompletableFuture<UMessage> buildClientResponseFuture(@NonNull UMessage requestMessage) {
+        final CompletableFuture<UMessage> responseFuture = new CompletableFuture<UMessage>()
                 .orTimeout(requestMessage.getAttributes().getTtl(), TimeUnit.MILLISECONDS);
-        responseFuture.whenComplete((responsePayload, exception) ->
+        responseFuture.whenComplete((responseMessage, exception) ->
             mRequests.remove(requestMessage.getAttributes().getId()));
         return responseFuture;
     }
@@ -763,7 +810,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
 
     private void handleResponseMessage(@NonNull UMessage responseMessage) {
         final UAttributes responseAttributes = responseMessage.getAttributes();
-        final CompletableFuture<UPayload> responseFuture = mRequests.remove(responseAttributes.getReqid());
+        final CompletableFuture<UMessage> responseFuture = mRequests.remove(responseAttributes.getReqid());
         if (responseFuture == null) {
             return;
         }
@@ -774,6 +821,6 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
                 return;
             }
         }
-        responseFuture.complete(responseMessage.getPayload());
+        responseFuture.complete(responseMessage);
     }
 }

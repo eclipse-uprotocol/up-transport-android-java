@@ -23,16 +23,16 @@
  */
 package org.eclipse.uprotocol.v1.internal;
 
-import static com.google.common.base.Strings.nullToEmpty;
-
 import android.os.Parcel;
 
 import androidx.annotation.NonNull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.eclipse.uprotocol.v1.UEntity;
 
 /**
- * A parcelable wrapper for UEntity.
+ * A parcelable wrapper for {@link UEntity}.
  */
 public final class ParcelableUEntity extends ParcelableMessage<UEntity> {
 
@@ -55,29 +55,7 @@ public final class ParcelableUEntity extends ParcelableMessage<UEntity> {
     }
 
     @Override
-    protected void writeMessage(@NonNull Parcel out, int flags) {
-        out.writeString(mMessage.getName());
-        out.writeInt(mMessage.hasId() ? mMessage.getId() : VALUE_NOT_SET);
-        out.writeInt(mMessage.hasVersionMajor() ? mMessage.getVersionMajor() : VALUE_NOT_SET);
-        out.writeInt(mMessage.hasVersionMinor() ? mMessage.getVersionMinor() : VALUE_NOT_SET);
-    }
-
-    @Override
-    protected @NonNull UEntity readMessage(@NonNull Parcel in) {
-        final UEntity.Builder builder = UEntity.newBuilder();
-        builder.setName(nullToEmpty(in.readString()));
-        final int id = in.readInt();
-        if (id >= 0) {
-            builder.setId(id);
-        }
-        final int versionMajor = in.readInt();
-        if (versionMajor >= 0) {
-            builder.setVersionMajor(versionMajor);
-        }
-        final int versionMinor = in.readInt();
-        if (versionMinor >= 0) {
-            builder.setVersionMinor(versionMinor);
-        }
-        return builder.build();
+    protected @NonNull UEntity parse(@NonNull byte[] data) throws InvalidProtocolBufferException {
+        return UEntity.parseFrom(data);
     }
 }

@@ -25,6 +25,9 @@ package org.eclipse.uprotocol.common.util.log;
 
 import androidx.annotation.NonNull;
 
+/**
+ * The common keys to be used for logging key-value pairs.
+ */
 @SuppressWarnings("unused")
 public interface Key {
     String ACCESS = "access";
@@ -96,6 +99,12 @@ public interface Key {
     String VALUE = "value";
     String VERSION = "version";
 
+    /**
+     * Format a status key for a given method.
+     *
+     * @param method A name of a method.
+     * @return A formatted status key, like "status.method".
+     */
     static @NonNull String forStatus(@NonNull String method) {
         return STATUS + "." + method;
     }

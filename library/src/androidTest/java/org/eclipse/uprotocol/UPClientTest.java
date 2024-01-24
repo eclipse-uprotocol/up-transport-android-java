@@ -412,7 +412,7 @@ public class UPClientTest extends TestBase {
     public void testInvokeMethod() throws Exception {
         testRegisterRpcListener();
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 sClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
@@ -429,7 +429,12 @@ public class UPClientTest extends TestBase {
         assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestMessage.getAttributes().getType());
         responseFutureCaptor.getValue().complete(RESPONSE_PAYLOAD);
 
-        assertEquals(RESPONSE_PAYLOAD, responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS));
+        final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        assertEquals(METHOD_URI, responseMessage.getSource());
+        assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
+        assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
+        assertEquals(requestMessage.getAttributes().getId(), responseMessage.getAttributes().getReqid());
     }
 
     @Test
@@ -450,7 +455,7 @@ public class UPClientTest extends TestBase {
     public void testInvokeMethodCompletedWithCommStatus() {
         testRegisterRpcListener();
 
-        final CompletableFuture<UPayload> responseFuture =
+        final CompletableFuture<UMessage> responseFuture =
                 sClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 

@@ -23,16 +23,16 @@
  */
 package org.eclipse.uprotocol.v1.internal;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
-
 import android.os.Parcel;
 
 import androidx.annotation.NonNull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.eclipse.uprotocol.v1.UStatus;
 
 /**
- * A parcelable wrapper for UStatus.
+ * A parcelable wrapper for {@link UStatus}.
  */
 public final class ParcelableUStatus extends ParcelableMessage<UStatus> {
 
@@ -55,19 +55,7 @@ public final class ParcelableUStatus extends ParcelableMessage<UStatus> {
     }
 
     @Override
-    protected void writeMessage(@NonNull Parcel out, int flags) {
-        out.writeInt(mMessage.getCodeValue());
-        out.writeString(mMessage.hasMessage() ? mMessage.getMessage() : null);
-    }
-
-    @Override
-    protected @NonNull UStatus readMessage(@NonNull Parcel in) {
-        final UStatus.Builder builder = UStatus.newBuilder();
-        builder.setCodeValue(in.readInt());
-        final String message = in.readString();
-        if (!isNullOrEmpty(message)) {
-            builder.setMessage(message);
-        }
-        return builder.build();
+    protected @NonNull UStatus parse(@NonNull byte[] data) throws InvalidProtocolBufferException {
+        return UStatus.parseFrom(data);
     }
 }

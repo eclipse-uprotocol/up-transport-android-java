@@ -110,19 +110,6 @@ public class UStatusUtilsTest {
     }
 
     @Test
-    public void testNewStatusBuilderCode() {
-        final UStatus.Builder builder = UStatusUtils.newStatusBuilder(UCode.INVALID_ARGUMENT);
-        assertEquals(UCode.INVALID_ARGUMENT, builder.getCode());
-    }
-
-    @Test
-    public void testNewStatusBuilderCodeAndMessage() {
-        final UStatus.Builder builder = UStatusUtils.newStatusBuilder(UCode.INVALID_ARGUMENT, MESSAGE);
-        assertEquals(UCode.INVALID_ARGUMENT, builder.getCode());
-        assertEquals(MESSAGE, builder.getMessage());
-    }
-
-    @Test
     public void testBuildStatusCode() {
         final UStatus status = UStatusUtils.buildStatus(UCode.INVALID_ARGUMENT);
         assertEquals(UCode.INVALID_ARGUMENT, status.getCode());

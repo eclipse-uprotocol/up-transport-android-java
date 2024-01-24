@@ -40,14 +40,33 @@ import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUID;
 import org.eclipse.uprotocol.v1.UUri;
 
+/**
+ * The formatter utility to be used for logging key-value pairs.
+ */
 public interface Formatter {
+    /** The separator between a key and a value. */
     String SEPARATOR_PAIR = ": ";
+
+    /** The separator between key-value pairs. */
     String SEPARATOR_PAIRS = ", ";
 
+    /**
+     * Format a tag with a given name.
+     *
+     * @param name A name of a tag.
+     * @return A formatted tag.
+     */
     static @NonNull String tag(@NonNull String name) {
         return tag(name, null);
     }
 
+    /**
+     * Format a tag with a given name and group.
+     *
+     * @param name A name of a tag.
+     * @param group A group of a tag.
+     * @return A formatted tag.
+     */
     static @NonNull String tag(@NonNull String name, String group) {
         return isNullOrEmpty(group) ? name : name + ":" + group;
     }
@@ -67,27 +86,64 @@ public interface Formatter {
         return value.indexOf(' ') >= 0 ? quote(value) : value;
     }
 
+    /**
+     * Apply quotes and any necessary character escaping.
+     *
+     * @param value A string to modify.
+     * @return A quoted string.
+     */
     static @NonNull String quote(String value) {
         return '"' + escapeQuotes(value) + '"';
     }
 
+    /**
+     * Remove all quotes.
+     *
+     * @param value A string to modify.
+     * @return A string without quotes.
+     */
     static @NonNull String removeQuote(String value) {
         return value.replace("\"", "");
     }
 
+    /**
+     * Apply square brackets as a group.
+     *
+     * @param value A string to modify.
+     * @return A string enclosed in square brackets.
+     */
     static @NonNull String group(String value) {
         return '[' + nullToEmpty(value) + ']';
     }
 
+    /**
+     * Format grouped key-value pairs.
+     *
+     * @param args A variable argument list of key-value pairs, like "key1, value1, key2, value2, ...".
+     * @return A formatted string containing grouped key-value pairs.
+     */
     static @NonNull String joinGrouped(Object... args) {
         final StringBuilder builder = new StringBuilder("[");
         return joinAndAppend(builder, args).append("]").toString();
     }
 
+    /**
+     * Format key-value pairs.
+     *
+     * @param args A variable argument list of key-value pairs, like "key1, value1, key2, value2, ...".
+     * @return A formatted string containing key-value pairs.
+     */
     static @NonNull String join(Object... args) {
         return joinAndAppend(new StringBuilder(), args).toString();
     }
 
+    /**
+     * Format key-value pairs and append the result to a given {@link StringBuilder}.
+     *
+     * @param builder A {@link StringBuilder} to append the result.
+     * @param args    A variable argument list of key-value pairs, like "key1, value1, key2, value2, ...".
+     * @return A {@link StringBuilder} containing formatted key-value pairs.
+     */
     static @NonNull StringBuilder joinAndAppend(@NonNull StringBuilder builder, Object... args) {
         if (args == null) {
             return builder;
@@ -119,6 +175,14 @@ public interface Formatter {
         }
     }
 
+    /**
+     * Format a status of a method with optional arguments.
+     *
+     * @param method A name of a method.
+     * @param status A {@link UStatus} to format.
+     * @param args   A variable argument list of key-value pairs, like "key1, value1, key2, value2, ...".
+     * @return A formatted string containing a <code>method/status</code> pair and other given key-value pairs.
+     */
     static @NonNull String status(@NonNull String method, @NonNull UStatus status, Object... args) {
         final StringBuilder builder = new StringBuilder();
         joinAndAppend(builder, Key.forStatus(method), Formatter.stringify(status));
@@ -126,10 +190,22 @@ public interface Formatter {
         return builder.toString();
     }
 
+    /**
+     * Convert a {@link UUID} into a string.
+     *
+     * @param id A {@link UUID} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UUID id) {
         return LongUuidSerializer.instance().serialize(id);
     }
 
+    /**
+     * Convert a {@link UEntity} into a string containing arbitrary fields.
+     *
+     * @param entity A {@link UEntity} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UEntity entity) {
         if (entity == null) {
             return "";
@@ -142,6 +218,12 @@ public interface Formatter {
         return sb.toString();
     }
 
+    /**
+     * Convert a {@link UResource} into a string containing arbitrary fields.
+     *
+     * @param resource A {@link UResource} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UResource resource) {
         if (resource == null) {
             return "";
@@ -157,10 +239,22 @@ public interface Formatter {
         return sb.toString();
     }
 
+    /**
+     * Convert a {@link UUri} into a string.
+     *
+     * @param uri A {@link UUri} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UUri uri) {
         return LongUriSerializer.instance().serialize(uri);
     }
 
+    /**
+     * Convert a {@link UStatus} into a string.
+     *
+     * @param status A {@link UStatus} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UStatus status) {
         if (status == null) {
             return "";
@@ -170,6 +264,12 @@ public interface Formatter {
                 hasMessage ? Key.MESSAGE : null, hasMessage ? quote(status.getMessage()) : null);
     }
 
+    /**
+     * Convert a {@link UMessage} into a string containing arbitrary fields.
+     *
+     * @param message A {@link UMessage} to convert.
+     * @return A formatted string.
+     */
     static @NonNull String stringify(UMessage message) {
         if (message == null) {
             return "";
@@ -181,6 +281,12 @@ public interface Formatter {
                 Key.TYPE, attributes.getType());
     }
 
+    /**
+     * Convert a byte count to a human readable string.
+     *
+     * @param bytes A byte count.
+     * @return A formatted string such as "5.0 MB".
+     */
     @SuppressLint("DefaultLocale")
     static @NonNull String toPrettyMemory(long bytes) {
         long unit = 1024;

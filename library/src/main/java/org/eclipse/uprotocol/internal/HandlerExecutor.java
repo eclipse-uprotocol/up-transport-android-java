@@ -33,6 +33,9 @@ import androidx.annotation.Nullable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * An adapter {@link Executor} that posts all executed tasks onto the given {@link Handler}.
+ */
 public class HandlerExecutor implements Executor {
     private final Handler mHandler;
 

@@ -23,12 +23,13 @@
  */
 package org.eclipse.uprotocol.v1.internal;
 
+import android.os.BadParcelableException;
 import android.os.Parcel;
 import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
 
-import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 
 import java.util.Objects;
@@ -37,8 +38,6 @@ import java.util.Objects;
  * A parcelable wrapper base for protobuf messages.
  */
 public abstract class ParcelableMessage<T extends Message> implements Parcelable {
-    protected static final int VALUE_NOT_SET = -1;
-
     protected final T mMessage;
 
     protected ParcelableMessage(@NonNull Parcel in) {
@@ -51,59 +50,23 @@ public abstract class ParcelableMessage<T extends Message> implements Parcelable
 
     @Override
     public void writeToParcel(@NonNull Parcel out, int flags) {
-        final int start = out.dataPosition();
-        out.writeInt(0); // Placeholder for size
-        writeMessage(out, flags);
-        final int end = out.dataPosition();
-        final int size = end - start;
-        out.setDataPosition(start);
-        out.writeInt(size);
-        out.setDataPosition(end);
+        final byte[] data = mMessage.toByteArray();
+        out.writeInt(data.length);
+        out.writeByteArray(data);
     }
-
-    protected abstract void writeMessage(@NonNull Parcel out, int flags);
 
     private @NonNull T readFromParcel(@NonNull Parcel in) {
-        final int start = in.dataPosition();
-        final int size = in.readInt();
-        final T message = readMessage(in);
-        int end = in.dataPosition();
-        skipUnknownFields(in, start, end, size);
-        return message;
-    }
-
-    protected abstract @NonNull T readMessage(@NonNull Parcel in);
-
-    private static void skipUnknownFields(@NonNull Parcel parcel, int start, int end, int totalSize) {
-        final int size = end - start;
-        if (size >= 0 && size < totalSize) {
-            end = start + totalSize;
-            if (end <= parcel.dataSize()) {
-                parcel.setDataPosition(end);
-            }
+        try {
+            final int size = in.readInt();
+            final byte[] data = new byte[size];
+            in.readByteArray(data);
+            return parse(data);
+        } catch (Exception e) {
+            throw new BadParcelableException(e.getMessage());
         }
     }
 
-    protected static void writeByteString(@NonNull Parcel out, ByteString string) {
-        if (string == null) {
-            out.writeInt(VALUE_NOT_SET);
-        } else {
-            final byte[] array = string.toByteArray();
-            out.writeInt(array.length);
-            out.writeByteArray(array);
-        }
-    }
-
-    protected static ByteString readByteString(@NonNull Parcel in, ByteString defaultString) {
-        final int length = in.readInt();
-        if (length < 0) {
-            return defaultString;
-        } else {
-            final byte[] array = new byte[length];
-            in.readByteArray(array);
-            return ByteString.copyFrom(array);
-        }
-    }
+    protected abstract @NonNull T parse(byte[] data) throws InvalidProtocolBufferException;
 
     public @NonNull T getWrapped() {
         return mMessage;

@@ -10,14 +10,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 [versions]
-android = "8.2.1"
+android = "8.2.+"
 androidx-appcompat = "1.4.2"
 androidx-espresso = "3.5.1"
 androidx-junit = "1.1.5"
 junit = "4.13.2"
 mockito = "4.6.1"
 robolectric = "4.7.3"
-up-java = "1.5.6"
+up-java = "1.5.7"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }

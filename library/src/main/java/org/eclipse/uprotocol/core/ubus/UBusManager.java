@@ -77,6 +77,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * The manager that provides access to uBus.
+ */
 public final class UBusManager {
     public static final String ACTION_BIND_UBUS = "uprotocol.action.BIND_UBUS";
 

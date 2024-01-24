@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -43,9 +44,11 @@ import org.eclipse.uprotocol.TestBase;
 import org.eclipse.uprotocol.UprotocolOptions;
 import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
-import org.eclipse.uprotocol.uri.builder.UResourceBuilder;
+import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
+import org.eclipse.uprotocol.v1.UAttributes;
 import org.eclipse.uprotocol.v1.UMessage;
 import org.eclipse.uprotocol.v1.UStatus;
+import org.eclipse.uprotocol.v1.UUri;
 import org.eclipse.uprotocol.v1.UUriBatch;
 import org.junit.Before;
 import org.junit.Test;
@@ -64,8 +67,12 @@ public class UTwinTest extends TestBase {
         mStub = UTwin.newStub(mClient);
     }
 
-    private void simulateResponse(@NonNull Message message) {
-        doReturn(CompletableFuture.completedFuture(packToAny(message))).when(mClient).invokeMethod(any(), any(), any());
+    private void simulateResponse(@NonNull Message response) {
+        doAnswer(invocation -> {
+            final UUri methodUri = invocation.getArgument(0);
+            final UAttributes responseAttributes = buildResponseAttributes(RESPONSE_URI, ID);
+            return CompletableFuture.completedFuture(buildMessage(methodUri, packToAny(response), responseAttributes));
+        }).when(mClient).invokeMethod(any(), any(), any());
     }
 
     @Test

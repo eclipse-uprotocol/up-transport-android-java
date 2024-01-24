@@ -27,10 +27,12 @@ import android.os.Parcel;
 
 import androidx.annotation.NonNull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.eclipse.uprotocol.v1.UUri;
 
 /**
- * A parcelable wrapper for UUri.
+ * A parcelable wrapper for {@link UUri}.
  */
 public final class ParcelableUUri extends ParcelableMessage<UUri> {
 
@@ -53,27 +55,7 @@ public final class ParcelableUUri extends ParcelableMessage<UUri> {
     }
 
     @Override
-    protected void writeMessage(@NonNull Parcel out, int flags) {
-        out.writeParcelable(mMessage.hasAuthority() ? new ParcelableUAuthority(mMessage.getAuthority()) : null, flags);
-        out.writeParcelable(mMessage.hasEntity() ? new ParcelableUEntity(mMessage.getEntity()) : null, flags);
-        out.writeParcelable(mMessage.hasResource() ? new ParcelableUResource(mMessage.getResource()) : null, flags);
-    }
-
-    @Override
-    protected @NonNull UUri readMessage(@NonNull Parcel in) {
-        final UUri.Builder builder = UUri.newBuilder();
-        final ParcelableUAuthority authority = in.readParcelable(ParcelableUAuthority.class.getClassLoader());
-        if (authority != null) {
-            builder.setAuthority(authority.getWrapped());
-        }
-        final ParcelableUEntity entity = in.readParcelable(ParcelableUEntity.class.getClassLoader());
-        if (entity != null) {
-            builder.setEntity(entity.getWrapped());
-        }
-        final ParcelableUResource resource = in.readParcelable(ParcelableUResource.class.getClassLoader());
-        if (resource != null) {
-            builder.setResource(resource.getWrapped());
-        }
-        return builder.build();
+    protected @NonNull UUri parse(@NonNull byte[] data) throws InvalidProtocolBufferException {
+        return UUri.parseFrom(data);
     }
 }

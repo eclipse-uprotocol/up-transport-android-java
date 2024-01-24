@@ -23,6 +23,9 @@
  */
 package org.eclipse.uprotocol.core.ubus;
 
+/**
+ * The callback interface to notify service connection changes.
+ */
 public interface ConnectionCallback {
     void onConnected();
     void onDisconnected();
