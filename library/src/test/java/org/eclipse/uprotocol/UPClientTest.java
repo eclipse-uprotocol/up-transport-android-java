@@ -99,7 +99,7 @@ import java.util.concurrent.TimeoutException;
 
 @RunWith(AndroidJUnit4.class)
 public class UPClientTest extends TestBase {
-    private static final UMessage MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD, buildPublishAttributes());
+    private static final UMessage MESSAGE = buildMessage(PAYLOAD, buildPublishAttributes(RESOURCE_URI));
     private static final UPayload REQUEST_PAYLOAD = packToAny(Int32Value.newBuilder().setValue(1).build());
     private static final UPayload RESPONSE_PAYLOAD = packToAny(STATUS_OK);
 
@@ -320,21 +320,6 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testSendParts() {
-        doReturn(STATUS_OK).when(mManager).send(MESSAGE);
-        assertStatus(UCode.OK, mClient.send(MESSAGE.getSource(), MESSAGE.getPayload(), MESSAGE.getAttributes()));
-    }
-
-    @Test
-    @SuppressWarnings("DataFlowIssue")
-    public void testSendPartsWithNulls() {
-        doReturn(STATUS_OK).when(mManager).send(any());
-        assertStatus(UCode.OK, mClient.send(null, MESSAGE.getPayload(), MESSAGE.getAttributes()));
-        assertStatus(UCode.OK, mClient.send(MESSAGE.getSource(), null, MESSAGE.getAttributes()));
-        assertStatus(UCode.OK, mClient.send(MESSAGE.getSource(), MESSAGE.getPayload(), null));
-    }
-
-    @Test
     public void testRegisterListener() {
         doReturn(STATUS_OK).when(mManager).enableDispatching(RESOURCE_URI);
         assertStatus(UCode.OK, mClient.registerListener(RESOURCE_URI, mListener));
@@ -475,14 +460,6 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testOnReceiveGenericMessageParts() {
-        testRegisterListenerNotFirst();
-        mClient.getListener().onReceive(MESSAGE.getSource(), MESSAGE.getPayload(), MESSAGE.getAttributes());
-        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(MESSAGE);
-        verify(mListener2, timeout(DELAY_MS).times(1)).onReceive(MESSAGE);
-    }
-
-    @Test
     public void testOnReceiveGenericMessageNotRegistered() {
         testUnregisterListener();
         mClient.getListener().onReceive(MESSAGE);
@@ -493,7 +470,7 @@ public class UPClientTest extends TestBase {
     public void testOnReceiveNotificationMessage() {
         testRegisterListener();
         final UMessage message =
-                buildMessage(RESOURCE_URI, PAYLOAD,newNotificationAttributesBuilder(CLIENT_URI).build());
+                buildMessage(PAYLOAD,newNotificationAttributesBuilder(RESOURCE_URI, CLIENT_URI).build());
         mClient.getListener().onReceive(message);
         verify(mListener, timeout(DELAY_MS).times(1)).onReceive(message);
     }
@@ -503,7 +480,7 @@ public class UPClientTest extends TestBase {
         mClient.setLoggable(Log.VERBOSE);
         testRegisterListener();
         final UMessage message =
-                buildMessage(RESOURCE_URI, PAYLOAD, newNotificationAttributesBuilder(SERVICE_URI).build());
+                buildMessage(PAYLOAD, newNotificationAttributesBuilder(RESOURCE_URI, SERVICE_URI).build());
         mClient.getListener().onReceive(message);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(message);
     }
@@ -512,7 +489,7 @@ public class UPClientTest extends TestBase {
     public void testOnReceiveMessageExpired() {
         mClient.setLoggable(Log.VERBOSE);
         testRegisterListener();
-        final UMessage message = buildMessage(RESOURCE_URI, PAYLOAD, newPublishAttributesBuilder().withTtl(1).build());
+        final UMessage message = buildMessage(PAYLOAD, newPublishAttributesBuilder(RESOURCE_URI).withTtl(1).build());
         sleep(DELAY_MS);
         mClient.getListener().onReceive(message);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(message);
@@ -521,7 +498,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveMessageWithoutAttributes() {
         testRegisterListener();
-        final UMessage message = buildMessage(RESOURCE_URI, null, null);
+        final UMessage message = buildMessage(null, null);
         mClient.getListener().onReceive(message);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(message);
     }
@@ -530,7 +507,7 @@ public class UPClientTest extends TestBase {
     public void testOnReceiveMessageWithUnknownType() {
         testRegisterListener();
         try (MockedStatic<UAttributesValidator> mockedValidator = mockStatic(UAttributesValidator.class)) {
-            final UMessage message = buildMessage(RESOURCE_URI, null, null);
+            final UMessage message = buildMessage(null, null);
             final UAttributesValidator dummyValidator = new UAttributesValidator() {
                 @Override public ValidationResult validateType(UAttributes attributes) {
                     return ValidationResult.success();
@@ -633,7 +610,7 @@ public class UPClientTest extends TestBase {
     public void testUnregisterRpcListenerWhenDisconnected() {
         testRegisterRpcListener();
         mClient.getConnectionCallback().onDisconnected();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         verify(mRequestListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage), any());
     }
@@ -663,7 +640,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveRequestMessage() {
         testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), any());
     }
@@ -671,7 +648,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveRequestMessageNotRegistered() {
         testUnregisterRpcListener();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         verify(mRequestListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage), any());
     }
@@ -680,15 +657,15 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("unchecked")
     public void testSendResponseMessage() {
         testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), captor.capture());
         final CompletableFuture<UPayload> responseFuture = captor.getValue();
         responseFuture.complete(PAYLOAD);
-        verify(mManager, times(1)).send(argThat(message -> {
-            assertEquals(METHOD_URI, message.getSource());
+        verify(mManager, timeout(DELAY_MS).times(1)).send(argThat(message -> {
             assertEquals(PAYLOAD, message.getPayload());
+            assertEquals(METHOD_URI, message.getAttributes().getSource());
             assertEquals(RESPONSE_URI, message.getAttributes().getSink());
             return true;
         }));
@@ -698,15 +675,15 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("unchecked")
     public void testSendResponseMessageWithCommStatus() {
         testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), captor.capture());
         final CompletableFuture<UPayload> responseFuture = captor.getValue();
         responseFuture.completeExceptionally(new UStatusException(UCode.ABORTED, "Aborted"));
-        verify(mManager, times(1)).send(argThat(message -> {
-            assertEquals(METHOD_URI, message.getSource());
+        verify(mManager, timeout(DELAY_MS).times(1)).send(argThat(message -> {
             assertEquals(UPayload.getDefaultInstance(), message.getPayload());
+            assertEquals(METHOD_URI, message.getAttributes().getSource());
             assertEquals(RESPONSE_URI, message.getAttributes().getSink());
             assertEquals(UCode.ABORTED_VALUE, message.getAttributes().getCommstatus());
             return true;
@@ -717,7 +694,7 @@ public class UPClientTest extends TestBase {
     @SuppressWarnings("unchecked")
     public void testSendResponseMessageNoPayload() {
         testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(RESPONSE_URI, PAYLOAD, buildRequestAttributes(METHOD_URI));
+        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
         sleep(DELAY_MS);
         final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
@@ -743,16 +720,16 @@ public class UPClientTest extends TestBase {
         verify(mRequestListener, timeout(DELAY_MS).times(1))
                 .onReceive(requestCaptor.capture(), responseFutureCaptor.capture());
         final UMessage requestMessage = requestCaptor.getValue();
-        assertEquals(RESPONSE_URI, requestMessage.getSource());
         assertEquals(REQUEST_PAYLOAD, requestMessage.getPayload());
+        assertEquals(RESPONSE_URI, requestMessage.getAttributes().getSource());
         assertEquals(METHOD_URI, requestMessage.getAttributes().getSink());
         assertEquals(OPTIONS.timeout(), requestMessage.getAttributes().getTtl());
         assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestMessage.getAttributes().getType());
         responseFutureCaptor.getValue().complete(RESPONSE_PAYLOAD);
 
         final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
-        assertEquals(METHOD_URI, responseMessage.getSource());
         assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
+        assertEquals(METHOD_URI, responseMessage.getAttributes().getSource());
         assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
         assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
         assertEquals(requestMessage.getAttributes().getId(), responseMessage.getAttributes().getReqid());
@@ -782,7 +759,7 @@ public class UPClientTest extends TestBase {
 
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), any());
         final UMessage responseMessage =
-                buildMessage(METHOD_URI, PAYLOAD, buildResponseAttributes(RESPONSE_URI, createId()));
+                buildMessage(PAYLOAD, buildResponseAttributes(METHOD_URI, RESPONSE_URI, createId()));
         mClient.getListener().onReceive(responseMessage);
 
         assertThrows(TimeoutException.class, () -> responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS));
@@ -800,7 +777,7 @@ public class UPClientTest extends TestBase {
 
         verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), any());
         final UMessage responseMessage =
-                buildMessage(METHOD_URI, PAYLOAD, buildResponseAttributes(RESPONSE_URI, createId()));
+                buildMessage(PAYLOAD, buildResponseAttributes(METHOD_URI, RESPONSE_URI, createId()));
         mClient.getListener().onReceive(responseMessage);
 
         testOnDisconnected();
@@ -842,8 +819,8 @@ public class UPClientTest extends TestBase {
         responseFutureCaptor.getValue().completeExceptionally(new UStatusException(UCode.OK, "No error"));
 
         final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
-        assertEquals(METHOD_URI, responseMessage.getSource());
         assertEquals(UPayload.getDefaultInstance(), responseMessage.getPayload());
+        assertEquals(METHOD_URI, responseMessage.getAttributes().getSource());
         assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
         assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
     }
@@ -851,9 +828,9 @@ public class UPClientTest extends TestBase {
     @Test
     public void testInvokeMethodSameRequest() {
         doReturn(buildStatus(UCode.OK)).when(mManager).send(any());
-        final UAttributesBuilder builder = UAttributesBuilder.request(UPriority.UPRIORITY_CS4, METHOD_URI, TTL);
+        final UAttributesBuilder builder = UAttributesBuilder.request(RESPONSE_URI, METHOD_URI, UPriority.UPRIORITY_CS4, TTL);
         try (MockedStatic<UAttributesBuilder> mockedBuilder = mockStatic(UAttributesBuilder.class)) {
-            mockedBuilder.when(() -> UAttributesBuilder.request(UPriority.UPRIORITY_CS4, METHOD_URI, TTL))
+            mockedBuilder.when(() -> UAttributesBuilder.request(RESPONSE_URI, METHOD_URI, UPriority.UPRIORITY_CS4, TTL))
                     .thenReturn(builder);
             mClient.invokeMethod(METHOD_URI, PAYLOAD, OPTIONS);
             assertStatus(UCode.ABORTED, toStatus(assertThrows(ExecutionException.class,

@@ -78,9 +78,9 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class UPClientTest extends TestBase {
-    private static final UMessage MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD, buildPublishAttributes());
-    private static final UMessage NOTIFICATION_MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD,
-            newNotificationAttributesBuilder(CLIENT_URI).build());
+    private static final UMessage MESSAGE = buildMessage(PAYLOAD, buildPublishAttributes(RESOURCE_URI));
+    private static final UMessage NOTIFICATION_MESSAGE = buildMessage(PAYLOAD,
+            newNotificationAttributesBuilder(RESOURCE_URI, CLIENT_URI).build());
     private static final CallOptions OPTIONS = CallOptions.newBuilder()
             .withTimeout(TTL)
             .build();
@@ -220,13 +220,7 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testSendParts() {
-        createTopic(RESOURCE_URI);
-        assertStatus(UCode.OK, sClient.send(MESSAGE.getSource(), MESSAGE.getPayload(), MESSAGE.getAttributes()));
-    }
-
-    @Test
-    public void testSendNotificationMassage() {
+    public void testSendNotificationMessage() {
         assertStatus(UCode.OK, sClient.send(NOTIFICATION_MESSAGE));
     }
 
@@ -330,7 +324,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveNotificationMessage() {
         testRegisterListener();
-        testSendNotificationMassage();
+        testSendNotificationMessage();
         verify(sListener, timeout(DELAY_MS).times(1)).onReceive(NOTIFICATION_MESSAGE);
     }
 
@@ -422,7 +416,7 @@ public class UPClientTest extends TestBase {
         verify(sRequestListener, timeout(DELAY_MS).times(1))
                 .onReceive(requestCaptor.capture(), responseFutureCaptor.capture());
         final UMessage requestMessage = requestCaptor.getValue();
-        assertEquals(RESPONSE_URI.getEntity(), requestMessage.getSource().getEntity());
+        assertEquals(RESPONSE_URI.getEntity(), requestMessage.getAttributes().getSource().getEntity());
         assertEquals(REQUEST_PAYLOAD, requestMessage.getPayload());
         assertEquals(METHOD_URI, requestMessage.getAttributes().getSink());
         assertEquals(OPTIONS.timeout(), requestMessage.getAttributes().getTtl());
@@ -430,7 +424,7 @@ public class UPClientTest extends TestBase {
         responseFutureCaptor.getValue().complete(RESPONSE_PAYLOAD);
 
         final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
-        assertEquals(METHOD_URI, responseMessage.getSource());
+        assertEquals(METHOD_URI, responseMessage.getAttributes().getSource());
         assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
         assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
         assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());

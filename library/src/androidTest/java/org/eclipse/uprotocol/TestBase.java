@@ -96,24 +96,20 @@ public class TestBase {
     protected static final long CONNECTION_TIMEOUT_MS = 3000;
     protected static final long DELAY_MS = 100;
 
-    protected static @NonNull UAttributes buildPublishAttributes() {
-        return newPublishAttributesBuilder().build();
+    protected static @NonNull UAttributes buildPublishAttributes(@NonNull UUri source) {
+        return newPublishAttributesBuilder(source).build();
     }
 
-
-    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder() {
-        return UAttributesBuilder.publish(UPriority.UPRIORITY_CS0);
+    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder(@NonNull UUri source) {
+        return UAttributesBuilder.publish(source, UPriority.UPRIORITY_CS0);
     }
 
-    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(@NonNull UUri sink) {
-        return UAttributesBuilder.notification(UPriority.UPRIORITY_CS0, sink);
+    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(@NonNull UUri source, @NonNull UUri sink) {
+        return UAttributesBuilder.notification(source, sink, UPriority.UPRIORITY_CS0);
     }
 
-    protected static @NonNull UMessage buildMessage(UUri source, UPayload payload, UAttributes attributes) {
+    protected static @NonNull UMessage buildMessage(UPayload payload, UAttributes attributes) {
         final UMessage.Builder builder = UMessage.newBuilder();
-        if (source != null) {
-            builder.setSource(source);
-        }
         if (payload != null) {
             builder.setPayload(payload);
         }

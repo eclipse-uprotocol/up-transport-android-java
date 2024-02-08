@@ -39,7 +39,7 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public class ParcelableUMessageTest extends TestBase {
-    private static final UMessage MESSAGE = buildMessage(RESPONSE_URI, PAYLOAD, ATTRIBUTES);
+    private static final UMessage MESSAGE = buildMessage(PAYLOAD, ATTRIBUTES);
 
     private Parcel mParcel;
 
@@ -74,11 +74,6 @@ public class ParcelableUMessageTest extends TestBase {
     @Test
     public void testCreateFromParcel() {
         checkWriteAndRead(MESSAGE);
-    }
-
-    @Test
-    public void testCreateFromParcelWithoutSource() {
-        checkWriteAndRead(UMessage.newBuilder(MESSAGE).clearSource().build());
     }
 
     @Test

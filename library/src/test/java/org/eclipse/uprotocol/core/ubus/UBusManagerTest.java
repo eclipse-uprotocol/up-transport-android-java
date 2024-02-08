@@ -77,7 +77,7 @@ import java.util.function.Consumer;
 public class UBusManagerTest extends TestBase {
     private static final String SERVICE_PACKAGE = "org.eclipse.uprotocol.core.ubus";
     private static final ComponentName SERVICE = new ComponentName(SERVICE_PACKAGE, SERVICE_PACKAGE + ".UBusService");
-    private static final UMessage MESSAGE = buildMessage(RESOURCE_URI, PAYLOAD, buildPublishAttributes());
+    private static final UMessage MESSAGE = buildMessage(PAYLOAD, buildPublishAttributes(RESOURCE_URI));
     private static final long REBIND_DELAY_MS = 1000 + DELAY_MS;
 
     private Context mContext;

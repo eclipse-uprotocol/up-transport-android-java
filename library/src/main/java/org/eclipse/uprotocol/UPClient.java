@@ -179,13 +179,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     };
 
-    private final UListener mListener = new UListener() {
-
-        @Override
-        public void onReceive(UMessage message) {
-            handleMessage(message);
-        }
-    };
+    private final UListener mListener = this::handleMessage;
 
     /**
      * The callback to notify the lifecycle of the uBus.
@@ -678,9 +672,12 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             checkNotNull(requestPayload, "Payload is null");
             checkNotNull(options, "Options cannot be null");
             final int timeout = checkArgumentPositive(options.timeout(), "Timeout is not positive");
-            final UAttributesBuilder builder = UAttributesBuilder.request(mResponseUri, UPriority.UPRIORITY_CS4, methodUri, timeout);
+            final UAttributesBuilder builder = UAttributesBuilder.request(mResponseUri, methodUri, UPriority.UPRIORITY_CS4, timeout);
             options.token().ifPresent(builder::withToken);
-            final UMessage requestMessage = UMessage.newBuilder().setPayload(requestPayload).setAttributes(builder.build()).build();
+            final UMessage requestMessage = UMessage.newBuilder()
+                    .setPayload(requestPayload)
+                    .setAttributes(builder.build())
+                    .build();
             return mRequests.compute(requestMessage.getAttributes().getId(), (requestId, currentRequest) -> {
                 checkArgument(currentRequest == null, UCode.ABORTED, "Duplicated request found");
                 final UStatus status = send(requestMessage);
@@ -766,14 +763,26 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         final CompletableFuture<UPayload> responseFuture = new CompletableFuture<>();
         responseFuture.whenComplete((responsePayload, exception) -> {
             final UAttributes requestAttributes = requestMessage.getAttributes();
-            final UAttributesBuilder builder = UAttributesBuilder
-                    .response(requestAttributes.getSink(), requestAttributes.getPriority(), requestMessage.getAttributes().getSource(), requestAttributes.getId());
+            final UAttributesBuilder builder = UAttributesBuilder.response(
+                    requestAttributes.getSink(),
+                    requestAttributes.getSource(),
+                    requestAttributes.getPriority(),
+                    requestAttributes.getId());
+            final UMessage responseMessage;
             if (exception != null) {
                 builder.withCommStatus(toStatus(exception).getCodeValue());
-            } else if (responsePayload == null) {
+                responseMessage = UMessage.newBuilder()
+                        .setAttributes(builder.build())
+                        .build();
+            } else if (responsePayload != null) {
+                responseMessage = UMessage.newBuilder()
+                        .setPayload(responsePayload)
+                        .setAttributes(builder.build())
+                        .build();
+            } else {
                 return;
             }
-            send(UMessage.newBuilder().setPayload(responsePayload).setAttributes(builder.build()).build());
+            send(responseMessage);
         });
         return responseFuture;
     }
