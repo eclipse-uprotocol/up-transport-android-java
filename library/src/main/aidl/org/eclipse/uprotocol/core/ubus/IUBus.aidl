@@ -33,7 +33,7 @@ interface IUBus {
     ParcelableUStatus registerClient(in String packageName, in ParcelableUEntity entity, in IBinder clientToken, in int flags, in IUListener listener);
     ParcelableUStatus unregisterClient(in IBinder clientToken);
     ParcelableUStatus send(in ParcelableUMessage message, in IBinder clientToken);
-    @nullable ParcelableUMessage[] pull(in ParcelableUUri uri, int count, in @nullable Bundle extras, IBinder clientToken);
-    ParcelableUStatus enableDispatching(in ParcelableUUri uri, in @nullable Bundle extras, IBinder clientToken);
-    ParcelableUStatus disableDispatching(in ParcelableUUri uri, in @nullable Bundle extras, IBinder clientToken);
+    @nullable ParcelableUMessage[] pull(in ParcelableUUri uri, int count, in int flags, IBinder clientToken);
+    ParcelableUStatus enableDispatching(in ParcelableUUri uri, in int flags, IBinder clientToken);
+    ParcelableUStatus disableDispatching(in ParcelableUUri uri, in int flags, IBinder clientToken);
 }
