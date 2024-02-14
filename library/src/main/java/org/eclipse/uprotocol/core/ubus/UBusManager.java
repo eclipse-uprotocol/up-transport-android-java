@@ -83,6 +83,8 @@ import java.util.function.Function;
 public final class UBusManager {
     public static final String ACTION_BIND_UBUS = "uprotocol.action.BIND_UBUS";
 
+    public static final int FLAG_BLOCK_AUTO_FETCH = 0x00000001;
+
     private static final int REBIND_BACKOFF_EXPONENT_MAX = 5;
     private static final int REBIND_BACKOFF_BASE = 2;
 
@@ -432,7 +434,7 @@ public final class UBusManager {
     public @NonNull UStatus enableDispatching(@NonNull UUri uri) {
         UStatus status;
         try {
-            status = getServiceOrThrow().enableDispatching(new ParcelableUUri(uri), null, mClientToken).getWrapped();
+            status = getServiceOrThrow().enableDispatching(new ParcelableUUri(uri), 0, mClientToken).getWrapped();
         } catch (Exception e) {
             status = toStatus(e);
         }
@@ -445,7 +447,7 @@ public final class UBusManager {
     public @NonNull UStatus disableDispatching(@NonNull UUri uri) {
         UStatus status;
         try {
-            status = getServiceOrThrow().disableDispatching(new ParcelableUUri(uri), null, mClientToken).getWrapped();
+            status = getServiceOrThrow().disableDispatching(new ParcelableUUri(uri), 0, mClientToken).getWrapped();
         } catch (Exception e) {
             status = toStatus(e);
         }
@@ -462,7 +464,7 @@ public final class UBusManager {
     public @Nullable UMessage getLastMessage(@NonNull UUri topic) {
         try {
             final ParcelableUMessage[] bundle = getServiceOrThrow()
-                    .pull(new ParcelableUUri(topic), 1, null, mClientToken);
+                    .pull(new ParcelableUUri(topic), 1, 0, mClientToken);
             return (bundle != null && bundle.length > 0) ? bundle[0].getWrapped() : null;
         } catch (Exception e) {
             Log.e(mTag, status("getLastMessage", toStatus(e), Key.URI, stringify(topic)));

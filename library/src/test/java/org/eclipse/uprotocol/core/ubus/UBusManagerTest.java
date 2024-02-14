@@ -110,11 +110,11 @@ public class UBusManagerTest extends TestBase {
         doReturn(mServiceBinder).when(mService).asBinder();
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).registerClient(any(), any(), any(), anyInt(), any());
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).unregisterClient(any());
-        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).enableDispatching(any(), any(), any());
-        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).disableDispatching(any(), any(), any());
+        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).enableDispatching(any(), anyInt(), any());
+        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).disableDispatching(any(), anyInt(), any());
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).send(any(), any());
         doReturn(new ParcelableUMessage[] { new ParcelableUMessage(MESSAGE) })
-                .when(mService).pull(any(), anyInt(), any(), any());
+                .when(mService).pull(any(), anyInt(), anyInt(), any());
         prepareService(true, connection -> {
             mServiceConnection = connection;
             mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
@@ -415,71 +415,71 @@ public class UBusManagerTest extends TestBase {
     public void testEnableDispatching() throws RemoteException {
         testConnect();
         assertStatus(UCode.OK, mManager.enableDispatching(RESOURCE_URI));
-        verify(mService, times(1)).enableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
+        verify(mService, times(1)).enableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
     }
 
     @Test
     public void testEnableDispatchingDisconnected() throws RemoteException {
         assertStatus(UCode.UNAVAILABLE, mManager.enableDispatching(RESOURCE_URI));
-        verify(mService, never()).enableDispatching(any(), any(), any());
+        verify(mService, never()).enableDispatching(any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatching() throws RemoteException {
         testConnect();
         assertStatus(UCode.OK, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
+        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnected() throws RemoteException {
         assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, never()).disableDispatching(any(), any(), any());
+        verify(mService, never()).disableDispatching(any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnectedDebug() throws RemoteException {
         mManager.setLoggable(Log.DEBUG);
         assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, never()).disableDispatching(any(), any(), any());
+        verify(mService, never()).disableDispatching(any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingQuietly() throws RemoteException {
         testConnect();
         mManager.disableDispatchingQuietly(RESOURCE_URI);
-        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), any(), any());
+        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
     }
 
     @Test
     public void testGetLastMessage() throws RemoteException {
         testConnect();
         assertEquals(MESSAGE, mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, times(1)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), any(), any());
+        verify(mService, times(1)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), anyInt(), any());
     }
 
     @Test
     public void testGetLastMessageNotAvailable() throws RemoteException {
         testConnect();
-        doReturn(new ParcelableUMessage[0]).when(mService).pull(any(), anyInt(), any(), any());
+        doReturn(new ParcelableUMessage[0]).when(mService).pull(any(), anyInt(), anyInt(), any());
         assertNull(mManager.getLastMessage(RESOURCE_URI));
-        doReturn(null).when(mService).pull(any(), anyInt(), any(), any());
+        doReturn(null).when(mService).pull(any(), anyInt(), anyInt(), any());
         assertNull(mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, times(2)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), any(), any());
+        verify(mService, times(2)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), anyInt(), any());
     }
 
     @Test
     @SuppressWarnings("DataFlowIssue")
     public void testGetLastMessageInvalidArgument() throws RemoteException {
         testConnect();
-        doThrow(new NullPointerException()).when(mService).pull(any(), anyInt(), any(), any());
+        doThrow(new NullPointerException()).when(mService).pull(any(), anyInt(), anyInt(), any());
         assertNull(mManager.getLastMessage(null));
     }
 
     @Test
     public void testGetLastMessageDisconnected() throws RemoteException {
         assertNull(mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, never()).pull(any(), anyInt(), any(), any());
+        verify(mService, never()).pull(any(), anyInt(), anyInt(), any());
     }
 
     @Test
