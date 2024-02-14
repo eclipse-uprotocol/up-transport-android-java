@@ -179,17 +179,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     };
 
-    private final UListener mListener = new UListener() {
-        @Override
-        public void onReceive(UUri topic, UPayload payload, UAttributes attributes) {
-            handleMessage(buildMessage(topic, payload, attributes));
-        }
-
-        @Override
-        public void onReceive(UMessage message) {
-            handleMessage(message);
-        }
-    };
+    private final UListener mListener = this::handleMessage;
 
     /**
      * The callback to notify the lifecycle of the uBus.
@@ -480,32 +470,6 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         return mListener;
     }
 
-    private static @NonNull UMessage buildMessage(UUri source, UPayload payload, UAttributes attributes) {
-        final UMessage.Builder builder = UMessage.newBuilder();
-        if (source != null) {
-            builder.setSource(source);
-        }
-        if (payload != null) {
-            builder.setPayload(payload);
-        }
-        if (attributes != null) {
-            builder.setAttributes(attributes);
-        }
-        return builder.build();
-    }
-
-    /**
-     * Transmit a payload associated with a source using defined attributes.
-     *
-     * @param source A {@link UUri} associated with a payload.
-     * @param payload A {@link UPayload} to be sent.
-     * @param attributes {@link UAttributes} containing transport attributes.
-     * @return A {@link UStatus} which contains a result code and other details.
-     */
-    @Override
-    public @NonNull UStatus send(@NonNull UUri source, @NonNull UPayload payload, @NonNull UAttributes attributes) {
-        return mUBusManager.send(buildMessage(source, payload, attributes));
-    }
 
     /**
      * Transmit a message.
@@ -708,9 +672,12 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             checkNotNull(requestPayload, "Payload is null");
             checkNotNull(options, "Options cannot be null");
             final int timeout = checkArgumentPositive(options.timeout(), "Timeout is not positive");
-            final UAttributesBuilder builder = UAttributesBuilder.request(UPriority.UPRIORITY_CS4, methodUri, timeout);
+            final UAttributesBuilder builder = UAttributesBuilder.request(mResponseUri, methodUri, UPriority.UPRIORITY_CS4, timeout);
             options.token().ifPresent(builder::withToken);
-            final UMessage requestMessage = buildMessage(mResponseUri, requestPayload, builder.build());
+            final UMessage requestMessage = UMessage.newBuilder()
+                    .setPayload(requestPayload)
+                    .setAttributes(builder.build())
+                    .build();
             return mRequests.compute(requestMessage.getAttributes().getId(), (requestId, currentRequest) -> {
                 checkArgument(currentRequest == null, UCode.ABORTED, "Duplicated request found");
                 final UStatus status = send(requestMessage);
@@ -765,7 +732,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             }
         }
         mCallbackExecutor.execute(() -> {
-            final UUri topic = message.getSource();
+            final UUri topic = message.getAttributes().getSource();
             final Set<UListener> listeners;
             synchronized (mRegistrationLock) {
                 listeners = new ArraySet<>(mListeners.get(topic));
@@ -796,14 +763,26 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         final CompletableFuture<UPayload> responseFuture = new CompletableFuture<>();
         responseFuture.whenComplete((responsePayload, exception) -> {
             final UAttributes requestAttributes = requestMessage.getAttributes();
-            final UAttributesBuilder builder = UAttributesBuilder
-                    .response(requestAttributes.getPriority(), requestMessage.getSource(), requestAttributes.getId());
+            final UAttributesBuilder builder = UAttributesBuilder.response(
+                    requestAttributes.getSink(),
+                    requestAttributes.getSource(),
+                    requestAttributes.getPriority(),
+                    requestAttributes.getId());
+            final UMessage responseMessage;
             if (exception != null) {
                 builder.withCommStatus(toStatus(exception).getCodeValue());
-            } else if (responsePayload == null) {
+                responseMessage = UMessage.newBuilder()
+                        .setAttributes(builder.build())
+                        .build();
+            } else if (responsePayload != null) {
+                responseMessage = UMessage.newBuilder()
+                        .setPayload(responsePayload)
+                        .setAttributes(builder.build())
+                        .build();
+            } else {
                 return;
             }
-            send(buildMessage(requestAttributes.getSink(), responsePayload, builder.build()));
+            send(responseMessage);
         });
         return responseFuture;
     }

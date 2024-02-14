@@ -62,7 +62,7 @@ public class UTwinTest extends TestBase {
     private UTwin.Stub mStub;
 
     @Before
-    public void setUp() throws RemoteException {
+    public void setUp() {
         mClient = mock(RpcClient.class);
         mStub = UTwin.newStub(mClient);
     }
@@ -70,8 +70,8 @@ public class UTwinTest extends TestBase {
     private void simulateResponse(@NonNull Message response) {
         doAnswer(invocation -> {
             final UUri methodUri = invocation.getArgument(0);
-            final UAttributes responseAttributes = buildResponseAttributes(RESPONSE_URI, ID);
-            return CompletableFuture.completedFuture(buildMessage(methodUri, packToAny(response), responseAttributes));
+            final UAttributes responseAttributes = buildResponseAttributes(methodUri, RESPONSE_URI, ID);
+            return CompletableFuture.completedFuture(buildMessage(packToAny(response), responseAttributes));
         }).when(mClient).invokeMethod(any(), any(), any());
     }
 

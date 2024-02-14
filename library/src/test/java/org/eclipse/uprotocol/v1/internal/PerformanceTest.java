@@ -49,7 +49,7 @@ public class PerformanceTest extends TestBase {
     private static final UEntity ENTITY = CLIENT;
     private static final UUri URI = RESOURCE_URI;
     private static final UStatus STATUS = buildStatus(UCode.UNKNOWN, "Unknown error");
-    private static final UMessage MESSAGE = buildMessage(METHOD_URI, packToAny(STATUS), ATTRIBUTES);
+    private static final UMessage MESSAGE = buildMessage(packToAny(STATUS), ATTRIBUTES);
     private static final String PROTOBUF = "Protobuf";
     private static final List<Integer> COUNTS = List.of(1000, 100, 10, 5, 1);
 

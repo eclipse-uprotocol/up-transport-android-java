@@ -276,7 +276,7 @@ public interface Formatter {
         }
         final UAttributes attributes = message.getAttributes();
         final boolean hasSink = attributes.hasSink();
-        return joinGrouped(Key.ID, stringify(attributes.getId()), Key.SOURCE, stringify(message.getSource()),
+        return joinGrouped(Key.ID, stringify(attributes.getId()), Key.SOURCE, stringify(attributes.getSource()),
                 hasSink ? Key.SINK : null, hasSink ? stringify(attributes.getSink()) : null,
                 Key.TYPE, attributes.getType());
     }

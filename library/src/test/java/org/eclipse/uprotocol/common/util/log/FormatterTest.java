@@ -225,7 +225,7 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testStringifyUMessage() {
-        final UMessage message = buildMessage(METHOD_URI, PAYLOAD, ATTRIBUTES);
+        final UMessage message = buildMessage(PAYLOAD, ATTRIBUTES);
         assertEquals("[id: " + ID_STRING + ", " +
                 "source: /test.service/1/rpc.method, sink: /test.client/1/rpc.response, " +
                 "type: UMESSAGE_TYPE_RESPONSE]", Formatter.stringify(message));
@@ -233,7 +233,7 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testStringifyUMessageWithoutSink() {
-        final UMessage message = buildMessage(METHOD_URI, PAYLOAD, UAttributes.newBuilder(ATTRIBUTES).clearSink().build());
+        final UMessage message = buildMessage(PAYLOAD, UAttributes.newBuilder(ATTRIBUTES).clearSink().build());
         assertEquals("[id: " + ID_STRING + ", " +
                 "source: /test.service/1/rpc.method, type: UMESSAGE_TYPE_RESPONSE]", Formatter.stringify(message));
     }

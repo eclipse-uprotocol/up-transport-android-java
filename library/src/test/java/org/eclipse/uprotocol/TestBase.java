@@ -137,6 +137,7 @@ public class TestBase {
     protected static final UAttributes ATTRIBUTES = UAttributes.newBuilder()
             .setId(ID)
             .setType(UMessageType.UMESSAGE_TYPE_RESPONSE)
+            .setSource(METHOD_URI)
             .setSink(RESPONSE_URI)
             .setPriority(UPriority.UPRIORITY_CS4)
             .setTtl(TTL)
@@ -152,40 +153,40 @@ public class TestBase {
         return UuidFactory.Factories.UPROTOCOL.factory().create();
     }
 
-    protected static @NonNull UAttributes buildPublishAttributes() {
-        return newPublishAttributesBuilder().build();
+    protected static @NonNull UAttributes buildPublishAttributes(@NonNull UUri source) {
+        return newPublishAttributesBuilder(source).build();
     }
 
-    protected static @NonNull UAttributes buildRequestAttributes(@NonNull UUri methodUri) {
-        return newRequestAttributesBuilder(methodUri).build();
+    protected static @NonNull UAttributes buildRequestAttributes(@NonNull UUri responseUri, @NonNull UUri methodUri) {
+        return newRequestAttributesBuilder(responseUri, methodUri).build();
     }
 
-    protected static @NonNull UAttributes buildResponseAttributes(@NonNull UUri responseUri, @NonNull UUID requestId) {
-        return newResponseAttributesBuilder(responseUri, requestId).build();
+    protected static @NonNull UAttributes buildResponseAttributes(
+            @NonNull UUri methodUri, @NonNull UUri responseUri, @NonNull UUID requestId) {
+        return newResponseAttributesBuilder(methodUri, responseUri, requestId).build();
     }
 
-    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder() {
-        return UAttributesBuilder.publish(UPriority.UPRIORITY_CS0);
+    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder(@NonNull UUri source) {
+        return UAttributesBuilder.publish(source, UPriority.UPRIORITY_CS0);
     }
 
-    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(@NonNull UUri sink) {
-        return UAttributesBuilder.notification(UPriority.UPRIORITY_CS0, sink);
+    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(
+            @NonNull UUri source, @NonNull UUri sink) {
+        return UAttributesBuilder.notification(source, sink, UPriority.UPRIORITY_CS0);
     }
 
-    protected static @NonNull UAttributesBuilder newRequestAttributesBuilder(@NonNull UUri methodUri) {
-        return UAttributesBuilder.request(UPriority.UPRIORITY_CS4, methodUri, TTL);
+    protected static @NonNull UAttributesBuilder newRequestAttributesBuilder(
+            @NonNull UUri responseUri, @NonNull UUri methodUri) {
+        return UAttributesBuilder.request(responseUri, methodUri, UPriority.UPRIORITY_CS4, TTL);
     }
 
-    protected static @NonNull UAttributesBuilder newResponseAttributesBuilder(@NonNull UUri responseUri,
-            @NonNull UUID requestId) {
-        return UAttributesBuilder.response(UPriority.UPRIORITY_CS4, responseUri, requestId);
+    protected static @NonNull UAttributesBuilder newResponseAttributesBuilder(
+            @NonNull UUri methodUri, @NonNull UUri responseUri, @NonNull UUID requestId) {
+        return UAttributesBuilder.response(methodUri, responseUri, UPriority.UPRIORITY_CS4, requestId);
     }
 
-    protected static @NonNull UMessage buildMessage(UUri source, UPayload payload, UAttributes attributes) {
+    protected static @NonNull UMessage buildMessage(UPayload payload, UAttributes attributes) {
         final UMessage.Builder builder = UMessage.newBuilder();
-        if (source != null) {
-            builder.setSource(source);
-        }
         if (payload != null) {
             builder.setPayload(payload);
         }
