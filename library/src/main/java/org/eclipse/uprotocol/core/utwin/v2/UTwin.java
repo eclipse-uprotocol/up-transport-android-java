@@ -21,17 +21,18 @@
  * SPDX-FileCopyrightText: 2023 General Motors GTO LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-package org.eclipse.uprotocol.core.utwin.v1;
+package org.eclipse.uprotocol.core.utwin.v2;
 
 import static org.eclipse.uprotocol.rpc.RpcMapper.mapResponse;
 import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
 
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
 import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
+import org.eclipse.uprotocol.v1.CallOptions;
 import org.eclipse.uprotocol.v1.UAuthority;
 import org.eclipse.uprotocol.v1.UEntity;
 import org.eclipse.uprotocol.v1.UMessage;
+import org.eclipse.uprotocol.v1.UPriority;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUri;
 import org.eclipse.uprotocol.v1.UUriBatch;
@@ -42,15 +43,20 @@ import java.util.concurrent.CompletionStage;
 public class UTwin {
     public static final UEntity SERVICE = UEntity.newBuilder()
             .setName("core.utwin")
-            .setVersionMajor(1)
+            .setVersionMajor(2)
             .build();
     public static final String METHOD_GET_LAST_MESSAGES = "GetLastMessages";
     public static final String METHOD_SET_LAST_MESSAGE = "SetLastMessage";
 
+    private static final CallOptions DEFAULT_OPTIONS = CallOptions.newBuilder()
+            .setPriority(UPriority.UPRIORITY_CS4)
+            .setTtl(10_000)
+            .build();
+
     private UTwin() {}
 
     public static UTwin.Stub newStub(RpcClient proxy) {
-        return newStub(proxy, null, CallOptions.DEFAULT);
+        return newStub(proxy, null, DEFAULT_OPTIONS);
     }
 
     public static UTwin.Stub newStub(RpcClient proxy, CallOptions options) {

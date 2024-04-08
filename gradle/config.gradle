@@ -17,6 +17,6 @@ ext {
         namespace       : 'org.eclipse.uprotocol.client',
         group           : 'org.eclipse.uprotocol',
         artifact        : 'up-client-android-java',
-        version         : '1.5.0',
+        version         : '0.1.2',
     ]
 }

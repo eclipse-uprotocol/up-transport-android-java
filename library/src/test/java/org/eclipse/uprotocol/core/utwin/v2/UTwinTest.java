@@ -21,7 +21,7 @@
  * SPDX-FileCopyrightText: 2023 General Motors GTO LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-package org.eclipse.uprotocol.core.utwin.v1;
+package org.eclipse.uprotocol.core.utwin.v2;
 
 import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
 import static org.junit.Assert.assertEquals;
@@ -32,8 +32,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-import android.os.RemoteException;
-
 import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -42,7 +40,6 @@ import com.google.protobuf.Message;
 
 import org.eclipse.uprotocol.TestBase;
 import org.eclipse.uprotocol.UprotocolOptions;
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
 import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
 import org.eclipse.uprotocol.v1.UAttributes;
@@ -85,7 +82,7 @@ public class UTwinTest extends TestBase {
     @Test
     public void testNewStub() {
         assertFalse(mStub.getAuthority().isPresent());
-        assertEquals(CallOptions.DEFAULT, mStub.getOptions());
+        assertEquals(DEFAULT_OPTIONS, mStub.getOptions());
     }
 
     @Test
