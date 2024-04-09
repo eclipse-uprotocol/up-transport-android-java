@@ -30,7 +30,6 @@ import static org.eclipse.uprotocol.common.util.UStatusUtils.checkArgument;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.checkArgumentPositive;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.checkNotNull;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.isOk;
-import static org.eclipse.uprotocol.common.util.UStatusUtils.toCode;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.toStatus;
 import static org.eclipse.uprotocol.common.util.log.Formatter.join;
 import static org.eclipse.uprotocol.common.util.log.Formatter.stringify;
@@ -62,15 +61,13 @@ import org.eclipse.uprotocol.common.util.log.Key;
 import org.eclipse.uprotocol.core.ubus.ConnectionCallback;
 import org.eclipse.uprotocol.core.ubus.UBusManager;
 import org.eclipse.uprotocol.internal.HandlerExecutor;
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
-import org.eclipse.uprotocol.rpc.RpcServer;
-import org.eclipse.uprotocol.rpc.URpcListener;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
 import org.eclipse.uprotocol.transport.validate.UAttributesValidator;
 import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
+import org.eclipse.uprotocol.v1.CallOptions;
 import org.eclipse.uprotocol.v1.UAttributes;
 import org.eclipse.uprotocol.v1.UCode;
 import org.eclipse.uprotocol.v1.UEntity;
@@ -100,7 +97,7 @@ import java.util.stream.Stream;
  * receiving messages, and invoking RPC methods.
  */
 @SuppressWarnings({"java:S1192", "java:S3398", "java:S6539"})
-public final class UPClient implements UTransport, RpcServer, RpcClient {
+public final class UPClient implements UTransport, RpcClient {
     /**
      * The logging group tag used by this class and all sub-components.
      */
@@ -144,9 +141,9 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     private final ConcurrentHashMap<UUID, CompletableFuture<UMessage>> mRequests = new ConcurrentHashMap<>();
     private final Object mRegistrationLock = new Object();
     @GuardedBy("mRegistrationLock")
-    private final Map<UUri, URpcListener> mRequestListeners = new HashMap<>();
+    private final Map<UUri, Set<UListener>> mGenericListeners = new HashMap<>();
     @GuardedBy("mRegistrationLock")
-    private final Map<UUri, Set<UListener>> mListeners = new HashMap<>();
+    private final Map<UUri, UListener> mRequestListeners = new HashMap<>();
     @GuardedBy("mRegistrationLock")
     private boolean mRegistrationExpired;
 
@@ -414,8 +411,8 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     private void renewRegistration() {
         synchronized (mRegistrationLock) {
             if (mRegistrationExpired) {
+                mGenericListeners.keySet().forEach(mUBusManager::enableDispatching);
                 mRequestListeners.keySet().forEach(mUBusManager::enableDispatching);
-                mListeners.keySet().forEach(mUBusManager::enableDispatching);
                 mRegistrationExpired = false;
             }
         }
@@ -426,8 +423,8 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             mRequests.values().forEach(requestFuture -> requestFuture.completeExceptionally(
                     new UStatusException(UCode.CANCELLED, "Service is disconnected")));
             mRequests.clear();
+            mGenericListeners.clear();
             mRequestListeners.clear();
-            mListeners.clear();
             mRegistrationExpired = false;
         }
     }
@@ -483,22 +480,70 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     }
 
     /**
-     * Register a listener for a particular topic to be notified when a message with that topic is received.
+     * Register a listener for a particular URI to be notified when a message with that URI is received.
      *
-     * <p>In order to start receiving published data a client needs to subscribe to the topic.
+     * <p>Only one listener is allowed to be registered per method URI. For a topic URI,
+     * multiple listeners are allowed to be registered. But in order to start receiving
+     * published data a client needs to subscribe to that topic.
      *
-     * @param topic    A {@link UUri} associated with a topic.
+     * @param uri      A {@link UUri} associated with either topic or method.
      * @param listener A {@link UListener} which needs to be registered.
      * @return A {@link UStatus} which contains a result code and other details.
      */
+
     @Override
-    public @NonNull UStatus registerListener(@NonNull UUri topic, @NonNull UListener listener) {
+    public @NonNull UStatus registerListener(@NonNull UUri uri, @NonNull UListener listener) {
+        return isRpcMethod(uri) ? registerRequestListener(uri, listener) : registerGenericListener(uri, listener);
+    }
+
+    /**
+     * Unregister a listener from a particular URI.
+     *
+     * <p>If this listener wasn't registered, nothing will happen.
+     *
+     * @param uri      A {@link UUri} associated with either topic or method.
+     * @param listener A {@link UListener} which needs to be unregistered.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
+    @Override
+    public @NonNull UStatus unregisterListener(@NonNull UUri uri, @NonNull UListener listener) {
+        return isRpcMethod(uri) ? unregisterRequestListener(uri, listener) : unregisterGenericListener(uri, listener);
+    }
+
+    /**
+     * Unregister a listener from all.
+     *
+     * <p>If this listener wasn't registered, nothing will happen.
+     *
+     * @param listener A {@link UListener} which needs to be unregistered.
+     * @return A {@link UStatus} which contains a result code and other details.
+     */
+    public @NonNull UStatus unregisterListener(@NonNull UListener listener) {
         try {
-            checkArgument(!isEmpty(topic), "Topic is empty");
-            checkArgument(!isRpcMethod(topic), "Topic matches the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
-                Set<UListener> listeners = mListeners.get(topic);
+                mGenericListeners.keySet().removeIf(topic -> unregisterGenericListenerLocked(topic, listener));
+                mRequestListeners.entrySet().removeIf(entry -> {
+                    if (entry.getValue() == listener) {
+                        mUBusManager.disableDispatchingQuietly(entry.getKey());
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
+            }
+            return STATUS_OK;
+        } catch (Exception e) {
+            return toStatus(e);
+        }
+    }
+
+    private @NonNull UStatus registerGenericListener(@NonNull UUri topic, @NonNull UListener listener) {
+        try {
+            checkArgument(!isEmpty(topic), "Topic is empty");
+            checkNotNull(listener, "Listener is null");
+            synchronized (mRegistrationLock) {
+                Set<UListener> listeners = mGenericListeners.get(topic);
                 if (listeners == null) {
                     listeners = new HashSet<>();
                 }
@@ -507,7 +552,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
                     if (!isOk(status)) {
                         return status;
                     }
-                    mListeners.put(topic, listeners);
+                    mGenericListeners.put(topic, listeners);
                 }
                 if (listeners.add(listener) && listeners.size() > 1) {
                     mCallbackExecutor.execute(() -> {
@@ -524,24 +569,13 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
-    /**
-     * Unregister a listener from a particular topic.
-     *
-     * <p>If this listener wasn't registered, nothing will happen.
-     *
-     * @param topic    A {@link UUri} associated with a topic.
-     * @param listener A {@link UListener} which needs to be unregistered.
-     * @return A {@link UStatus} which contains a result code and other details.
-     */
-    @Override
-    public @NonNull UStatus unregisterListener(@NonNull UUri topic, @NonNull UListener listener) {
+    private @NonNull UStatus unregisterGenericListener(@NonNull UUri topic, @NonNull UListener listener) {
         try {
             checkArgument(!isEmpty(topic), "Topic is empty");
-            checkArgument(!isRpcMethod(topic), "Topic matches the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
-                if (unregisterListenerLocked(topic, listener)) {
-                    mListeners.remove(topic);
+                if (unregisterGenericListenerLocked(topic, listener)) {
+                    mGenericListeners.remove(topic);
                 }
             }
             return STATUS_OK;
@@ -550,28 +584,8 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
-    /**
-     * Unregister a listener from all topics.
-     *
-     * <p>If this listener wasn't registered, nothing will happen.
-     *
-     * @param listener A {@link UListener} which needs to be unregistered.
-     * @return A {@link UStatus} which contains a result code and other details.
-     */
-    public @NonNull UStatus unregisterListener(@NonNull UListener listener) {
-        try {
-            checkNotNull(listener, "Listener is null");
-            synchronized (mRegistrationLock) {
-                mListeners.keySet().removeIf(topic -> unregisterListenerLocked(topic, listener));
-            }
-            return STATUS_OK;
-        } catch (Exception e) {
-            return toStatus(e);
-        }
-    }
-
-    private boolean unregisterListenerLocked(@NonNull UUri topic, @NonNull UListener listener) {
-        final Set<UListener> listeners = mListeners.get(topic);
+    private boolean unregisterGenericListenerLocked(@NonNull UUri topic, @NonNull UListener listener) {
+        final Set<UListener> listeners = mGenericListeners.get(topic);
         if (listeners != null && listeners.contains(listener)) {
             listeners.remove(listener);
             if (listeners.isEmpty()) {
@@ -583,22 +597,11 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         return false;
     }
 
-    /**
-     * Register a listener for a particular method URI to be notified when requests are sent against said method.
-     *
-     * <p>Note: Only one listener is allowed to be registered per method URI.
-     *
-     * @param methodUri A {@link UUri} associated with a method.
-     * @param listener  A {@link URpcListener} which needs to be registered.
-     * @return A {@code Status} which contains a result code and other details.
-     */
-    @Override
-    public @NonNull UStatus registerRpcListener(@NonNull UUri methodUri, @NonNull URpcListener listener) {
+    private @NonNull UStatus registerRequestListener(@NonNull UUri methodUri, @NonNull UListener listener) {
         try {
-            checkArgument(isRpcMethod(methodUri), "URI doesn't match the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
-                final URpcListener currentListener = mRequestListeners.get(methodUri);
+                final UListener currentListener = mRequestListeners.get(methodUri);
                 if (currentListener == listener) {
                     return STATUS_OK;
                 }
@@ -614,41 +617,13 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         }
     }
 
-    @Override
-    public @NonNull UStatus unregisterRpcListener(@NonNull UUri methodUri, @NonNull URpcListener listener) {
+    private @NonNull UStatus unregisterRequestListener(@NonNull UUri methodUri, @NonNull UListener listener) {
         try {
-            checkArgument(isRpcMethod(methodUri), "URI doesn't match the RPC format");
             checkNotNull(listener, "Listener is null");
             synchronized (mRegistrationLock) {
                 if (mRequestListeners.remove(methodUri, listener)) {
                     mUBusManager.disableDispatchingQuietly(methodUri);
                 }
-                return STATUS_OK;
-            }
-        } catch (Exception e) {
-            return toStatus(e);
-        }
-    }
-
-    /**
-     * Unregister a listener from all method URIs.
-     *
-     * <p>If this listener wasn't registered, nothing will happen.
-     *
-     * @param listener A {@link URpcListener} which needs to be unregistered.
-     * @return A {@link UStatus} which contains a result code and other details.
-     */
-    public @NonNull UStatus unregisterRpcListener(@NonNull URpcListener listener) {
-        try {
-            checkNotNull(listener, "Listener is null");
-            synchronized (mRegistrationLock) {
-                mRequestListeners.keySet().removeIf(methodUri -> {
-                    if (mRequestListeners.get(methodUri) != listener) {
-                        return false;
-                    }
-                    mUBusManager.disableDispatchingQuietly(methodUri);
-                    return true;
-                });
                 return STATUS_OK;
             }
         } catch (Exception e) {
@@ -671,9 +646,12 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             checkArgument(!isEmpty(methodUri), "Method URI is empty");
             checkNotNull(requestPayload, "Payload is null");
             checkNotNull(options, "Options cannot be null");
-            final int timeout = checkArgumentPositive(options.timeout(), "Timeout is not positive");
-            final UAttributesBuilder builder = UAttributesBuilder.request(mResponseUri, methodUri, UPriority.UPRIORITY_CS4, timeout);
-            options.token().ifPresent(builder::withToken);
+            final UPriority priority = checkPriority(options);
+            final int timeout = checkArgumentPositive(options.getTtl(), "Timeout is not positive");
+            final UAttributesBuilder builder = UAttributesBuilder.request(mResponseUri, methodUri, priority, timeout);
+            if (options.hasToken()) {
+                builder.withToken(options.getToken());
+            }
             final UMessage requestMessage = UMessage.newBuilder()
                     .setPayload(requestPayload)
                     .setAttributes(builder.build())
@@ -690,6 +668,13 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private static @NonNull UPriority checkPriority(@NonNull CallOptions options) {
+        final UPriority priority = options.getPriority();
+        checkArgument(priority.getNumber() >= UPriority.UPRIORITY_CS4.getNumber(),
+                "Priority must be equal or higher than " + UPriority.UPRIORITY_CS4);
+        return priority;
     }
 
     private @NonNull CompletableFuture<UMessage> buildClientResponseFuture(@NonNull UMessage requestMessage) {
@@ -716,7 +701,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             return;
         }
         switch (attributes.getType()) {
-            case UMESSAGE_TYPE_PUBLISH -> handleGenericMessage(message);
+            case UMESSAGE_TYPE_PUBLISH, UMESSAGE_TYPE_NOTIFICATION -> handleGenericMessage(message);
             case UMESSAGE_TYPE_REQUEST -> handleRequestMessage(message);
             case UMESSAGE_TYPE_RESPONSE -> handleResponseMessage(message);
             default -> Log.w(mTag, join(Key.EVENT, MESSAGE_DROPPED, Key.MESSAGE, stringify(message), Key.REASON, "Unknown type"));
@@ -735,7 +720,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             final UUri topic = message.getAttributes().getSource();
             final Set<UListener> listeners;
             synchronized (mRegistrationLock) {
-                listeners = new ArraySet<>(mListeners.get(topic));
+                listeners = new ArraySet<>(mGenericListeners.get(topic));
                 if (listeners.isEmpty()) {
                     Log.w(mTag, join(Key.EVENT, MESSAGE_DROPPED, Key.MESSAGE, stringify(message), Key.REASON, "No listener"));
                 }
@@ -747,7 +732,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
     private void handleRequestMessage(@NonNull UMessage requestMessage) {
         mCallbackExecutor.execute(() -> {
             final UUri methodUri = requestMessage.getAttributes().getSink();
-            final URpcListener listener;
+            final UListener listener;
             synchronized (mRegistrationLock) {
                 listener = mRequestListeners.get(methodUri);
                 if (listener == null) {
@@ -755,36 +740,8 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
                     return;
                 }
             }
-            listener.onReceive(requestMessage, buildServerResponseFuture(requestMessage));
+            listener.onReceive(requestMessage);
         });
-    }
-
-    private @NonNull CompletableFuture<UPayload> buildServerResponseFuture(@NonNull UMessage requestMessage) {
-        final CompletableFuture<UPayload> responseFuture = new CompletableFuture<>();
-        responseFuture.whenComplete((responsePayload, exception) -> {
-            final UAttributes requestAttributes = requestMessage.getAttributes();
-            final UAttributesBuilder builder = UAttributesBuilder.response(
-                    requestAttributes.getSink(),
-                    requestAttributes.getSource(),
-                    requestAttributes.getPriority(),
-                    requestAttributes.getId());
-            final UMessage responseMessage;
-            if (exception != null) {
-                builder.withCommStatus(toStatus(exception).getCodeValue());
-                responseMessage = UMessage.newBuilder()
-                        .setAttributes(builder.build())
-                        .build();
-            } else if (responsePayload != null) {
-                responseMessage = UMessage.newBuilder()
-                        .setPayload(responsePayload)
-                        .setAttributes(builder.build())
-                        .build();
-            } else {
-                return;
-            }
-            send(responseMessage);
-        });
-        return responseFuture;
     }
 
     private void handleResponseMessage(@NonNull UMessage responseMessage) {
@@ -794,7 +751,7 @@ public final class UPClient implements UTransport, RpcServer, RpcClient {
             return;
         }
         if (responseAttributes.hasCommstatus()) {
-            final UCode code = toCode(responseAttributes.getCommstatus());
+            final UCode code = responseAttributes.getCommstatus();
             if (code != UCode.OK) {
                 responseFuture.completeExceptionally(new UStatusException(code, "Communication error [" + code + "]"));
                 return;

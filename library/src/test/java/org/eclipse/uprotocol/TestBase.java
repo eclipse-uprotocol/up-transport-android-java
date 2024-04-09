@@ -48,10 +48,10 @@ import androidx.annotation.NonNull;
 import com.google.protobuf.Empty;
 
 import org.eclipse.uprotocol.common.UStatusException;
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
 import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
 import org.eclipse.uprotocol.uuid.factory.UuidFactory;
+import org.eclipse.uprotocol.v1.CallOptions;
 import org.eclipse.uprotocol.v1.UAttributes;
 import org.eclipse.uprotocol.v1.UAuthority;
 import org.eclipse.uprotocol.v1.UCode;
@@ -131,8 +131,13 @@ public class TestBase {
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG" +
             "4gU21pdGgiLCJpYXQiOjE1MTYyMzkwMjJ9.Q_w2AVguPRU2KskCXwR7ZHl09TQXEntfEA8Jj2_Jyew";
     protected static final CallOptions OPTIONS = CallOptions.newBuilder()
-            .withTimeout(TTL)
-            .withToken(TOKEN)
+            .setPriority(UPriority.UPRIORITY_CS4)
+            .setTtl(TTL)
+            .setToken(TOKEN)
+            .build();
+    protected static final CallOptions DEFAULT_OPTIONS = CallOptions.newBuilder()
+            .setPriority(UPriority.UPRIORITY_CS4)
+            .setTtl(10_000)
             .build();
     protected static final UAttributes ATTRIBUTES = UAttributes.newBuilder()
             .setId(ID)
@@ -142,7 +147,7 @@ public class TestBase {
             .setPriority(UPriority.UPRIORITY_CS4)
             .setTtl(TTL)
             .setPermissionLevel(5)
-            .setCommstatus(UCode.DEADLINE_EXCEEDED_VALUE)
+            .setCommstatus(UCode.DEADLINE_EXCEEDED)
             .setReqid(ID2)
             .setToken(TOKEN)
             .build();

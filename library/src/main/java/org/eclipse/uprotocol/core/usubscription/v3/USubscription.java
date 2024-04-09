@@ -26,11 +26,12 @@ package org.eclipse.uprotocol.core.usubscription.v3;
 import static org.eclipse.uprotocol.rpc.RpcMapper.mapResponse;
 import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
 
-import org.eclipse.uprotocol.rpc.CallOptions;
 import org.eclipse.uprotocol.rpc.RpcClient;
 import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
+import org.eclipse.uprotocol.v1.CallOptions;
 import org.eclipse.uprotocol.v1.UAuthority;
 import org.eclipse.uprotocol.v1.UEntity;
+import org.eclipse.uprotocol.v1.UPriority;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUri;
 
@@ -52,10 +53,15 @@ public class USubscription {
     public static final String METHOD_FETCH_SUBSCRIBERS = "FetchSubscribers";
     public static final String METHOD_RESET = "Reset";
 
+    private static final CallOptions DEFAULT_OPTIONS = CallOptions.newBuilder()
+            .setPriority(UPriority.UPRIORITY_CS4)
+            .setTtl(10_000)
+            .build();
+
     private USubscription() {}
 
     public static Stub newStub(RpcClient proxy) {
-        return newStub(proxy, null, CallOptions.DEFAULT);
+        return newStub(proxy, null, DEFAULT_OPTIONS);
     }
 
     public static Stub newStub(RpcClient proxy, CallOptions options) {

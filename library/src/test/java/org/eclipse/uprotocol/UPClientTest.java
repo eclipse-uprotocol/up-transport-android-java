@@ -37,7 +37,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -65,12 +64,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.protobuf.Int32Value;
 
 import org.eclipse.uprotocol.UPClient.ServiceLifecycleListener;
-import org.eclipse.uprotocol.common.UStatusException;
 import org.eclipse.uprotocol.core.ubus.UBusManager;
-import org.eclipse.uprotocol.rpc.URpcListener;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
 import org.eclipse.uprotocol.transport.validate.UAttributesValidator;
+import org.eclipse.uprotocol.v1.CallOptions;
 import org.eclipse.uprotocol.v1.UAttributes;
 import org.eclipse.uprotocol.v1.UCode;
 import org.eclipse.uprotocol.v1.UEntity;
@@ -111,8 +109,6 @@ public class UPClientTest extends TestBase {
     private ServiceLifecycleListener mServiceLifecycleListener;
     private UListener mListener;
     private UListener mListener2;
-    private URpcListener mRequestListener;
-    private URpcListener mRequestListener2;
     private UBusManager mManager;
     private UPClient mClient;
 
@@ -126,8 +122,6 @@ public class UPClientTest extends TestBase {
         mServiceLifecycleListener = mock(ServiceLifecycleListener.class);
         mListener = mock(UListener.class);
         mListener2 = mock(UListener.class);
-        mRequestListener = mock(URpcListener.class);
-        mRequestListener2 = mock(URpcListener.class);
         mManager = mock(UBusManager.class);
         injectPackage(buildPackageInfo(mPackageName, buildMetadata(CLIENT)));
         mClient = new UPClient(mContext, CLIENT, mManager, mExecutor, mServiceLifecycleListener);
@@ -320,7 +314,7 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testRegisterListener() {
+    public void testRegisterGenericListener() {
         doReturn(STATUS_OK).when(mManager).enableDispatching(RESOURCE_URI);
         assertStatus(UCode.OK, mClient.registerListener(RESOURCE_URI, mListener));
         verify(mManager, times(1)).enableDispatching(RESOURCE_URI);
@@ -329,15 +323,15 @@ public class UPClientTest extends TestBase {
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testRegisterListenerWithInvalidArgument() {
+    public void testRegisterGenericListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(UUri.getDefaultInstance(), mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(null, mListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(RESOURCE_URI, null));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(METHOD_URI, mListener));
         verify(mManager, never()).enableDispatching(RESOURCE_URI);
     }
 
     @Test
-    public void testRegisterListenerDifferentTopics() {
+    public void testRegisterGenericListenerDifferentTopics() {
         doReturn(STATUS_OK).when(mManager).enableDispatching(RESOURCE_URI);
         doReturn(STATUS_OK).when(mManager).enableDispatching(RESOURCE2_URI);
         assertStatus(UCode.OK, mClient.registerListener(RESOURCE_URI, mListener));
@@ -347,37 +341,37 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testRegisterListenerSame() {
-        testRegisterListener();
+    public void testRegisterGenericListenerSame() {
+        testRegisterGenericListener();
         assertStatus(UCode.OK, mClient.registerListener(RESOURCE_URI, mListener));
         verify(mManager, times(1)).enableDispatching(RESOURCE_URI);
         verify(mManager, never()).getLastMessage(RESOURCE_URI);
     }
 
     @Test
-    public void testRegisterListenerNotFirst() {
-        testRegisterListener();
+    public void testRegisterGenericListenerNotFirst() {
+        testRegisterGenericListener();
         assertStatus(UCode.OK, mClient.registerListener(RESOURCE_URI, mListener2));
         verify(mManager, times(1)).enableDispatching(RESOURCE_URI);
         verify(mManager, times(1)).getLastMessage(RESOURCE_URI);
     }
 
     @Test
-    public void testRegisterListenerNotFirstLastMessageNotified() {
+    public void testRegisterGenericListenerNotFirstLastMessageNotified() {
         doReturn(MESSAGE).when(mManager).getLastMessage(RESOURCE_URI);
-        testRegisterListenerNotFirst();
+        testRegisterGenericListenerNotFirst();
         verify(mListener2, timeout(DELAY_MS).times(1)).onReceive(MESSAGE);
     }
 
     @Test
-    public void testRegisterListenerFailed() {
+    public void testRegisterGenericListenerFailed() {
         doReturn(buildStatus(UCode.UNAUTHENTICATED)).when(mManager).enableDispatching(RESOURCE_URI);
         assertStatus(UCode.UNAUTHENTICATED, mClient.registerListener(RESOURCE_URI, mListener));
     }
 
     @Test
-    public void testRegisterListenerWhenReconnected() {
-        testRegisterListener();
+    public void testRegisterGenericListenerWhenReconnected() {
+        testRegisterGenericListener();
         mClient.getConnectionCallback().onConnectionInterrupted();
         verify(mManager, timeout(DELAY_MS).times(0)).disableDispatchingQuietly(RESOURCE_URI);
         mClient.getConnectionCallback().onConnected();
@@ -385,8 +379,8 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testUnregisterListener() {
-        testRegisterListener();
+    public void testUnregisterGenericListener() {
+        testRegisterGenericListener();
         doReturn(STATUS_OK).when(mManager).disableDispatching(RESOURCE_URI);
         assertStatus(UCode.OK, mClient.unregisterListener(RESOURCE_URI, mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(RESOURCE_URI);
@@ -394,52 +388,52 @@ public class UPClientTest extends TestBase {
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testUnregisterListenerWithInvalidArgument() {
+    public void testUnregisterGenericListenerWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(UUri.getDefaultInstance(), mListener));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(METHOD_URI, mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(null, mListener));
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(RESOURCE_URI, null));
         verify(mManager, never()).disableDispatchingQuietly(RESOURCE_URI);
     }
 
     @Test
-    public void testUnregisterListenerSame() {
-        testUnregisterListener();
+    public void testUnregisterGenericListenerSame() {
+        testUnregisterGenericListener();
         assertStatus(UCode.OK, mClient.unregisterListener(RESOURCE_URI, mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(RESOURCE_URI);
     }
 
     @Test
-    public void testUnregisterListenerNotRegistered() {
-        testRegisterListener();
+    public void testUnregisterGenericListenerNotRegistered() {
+        testRegisterGenericListener();
         assertStatus(UCode.OK, mClient.unregisterListener(RESOURCE_URI, mListener2));
         verify(mManager, times(0)).disableDispatchingQuietly(RESOURCE_URI);
     }
 
     @Test
-    public void testUnregisterListenerNotLast() {
-        testRegisterListenerNotFirst();
+    public void testUnregisterGenericListenerNotLast() {
+        testRegisterGenericListenerNotFirst();
         assertStatus(UCode.OK, mClient.unregisterListener(RESOURCE_URI, mListener));
         verify(mManager, never()).disableDispatchingQuietly(RESOURCE_URI);
     }
 
     @Test
-    public void testUnregisterListenerLast() {
-        testUnregisterListenerNotLast();
+    public void testUnregisterGenericListenerLast() {
+        testUnregisterGenericListenerNotLast();
         assertStatus(UCode.OK, mClient.unregisterListener(RESOURCE_URI, mListener2));
         verify(mManager, times(1)).disableDispatchingQuietly(RESOURCE_URI);
     }
 
     @Test
-    public void testUnregisterListenerWhenDisconnected() {
-        testRegisterListener();
+    public void testUnregisterGenericListenerWhenDisconnected() {
+        testRegisterGenericListener();
         mClient.getConnectionCallback().onDisconnected();
         mClient.getListener().onReceive(MESSAGE);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(MESSAGE);
     }
 
     @Test
-    public void testUnregisterListenerFromAllTopics() {
-        testRegisterListenerDifferentTopics();
+    public void testUnregisterGenericListenerFromAllTopics() {
+        testRegisterGenericListenerDifferentTopics();
         assertStatus(UCode.OK, mClient.unregisterListener(mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(RESOURCE_URI);
         verify(mManager, times(1)).disableDispatchingQuietly(RESOURCE2_URI);
@@ -447,13 +441,13 @@ public class UPClientTest extends TestBase {
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testUnregisterListenerFromAllTopicsWithInvalidArgument() {
+    public void testUnregisterGenericListenerFromAllTopicsWithInvalidArgument() {
         assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(null));
     }
 
     @Test
     public void testOnReceiveGenericMessage() {
-        testRegisterListenerNotFirst();
+        testRegisterGenericListenerNotFirst();
         mClient.getListener().onReceive(MESSAGE);
         verify(mListener, timeout(DELAY_MS).times(1)).onReceive(MESSAGE);
         verify(mListener2, timeout(DELAY_MS).times(1)).onReceive(MESSAGE);
@@ -461,14 +455,14 @@ public class UPClientTest extends TestBase {
 
     @Test
     public void testOnReceiveGenericMessageNotRegistered() {
-        testUnregisterListener();
+        testUnregisterGenericListener();
         mClient.getListener().onReceive(MESSAGE);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(MESSAGE);
     }
 
     @Test
     public void testOnReceiveNotificationMessage() {
-        testRegisterListener();
+        testRegisterGenericListener();
         final UMessage message =
                 buildMessage(PAYLOAD,newNotificationAttributesBuilder(RESOURCE_URI, CLIENT_URI).build());
         mClient.getListener().onReceive(message);
@@ -478,7 +472,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveNotificationMessageWrongSink() {
         mClient.setLoggable(Log.VERBOSE);
-        testRegisterListener();
+        testRegisterGenericListener();
         final UMessage message =
                 buildMessage(PAYLOAD, newNotificationAttributesBuilder(RESOURCE_URI, SERVICE_URI).build());
         mClient.getListener().onReceive(message);
@@ -488,7 +482,7 @@ public class UPClientTest extends TestBase {
     @Test
     public void testOnReceiveMessageExpired() {
         mClient.setLoggable(Log.VERBOSE);
-        testRegisterListener();
+        testRegisterGenericListener();
         final UMessage message = buildMessage(PAYLOAD, newPublishAttributesBuilder(RESOURCE_URI).withTtl(1).build());
         sleep(DELAY_MS);
         mClient.getListener().onReceive(message);
@@ -497,7 +491,7 @@ public class UPClientTest extends TestBase {
 
     @Test
     public void testOnReceiveMessageWithoutAttributes() {
-        testRegisterListener();
+        testRegisterGenericListener();
         final UMessage message = buildMessage(null, null);
         mClient.getListener().onReceive(message);
         verify(mListener, timeout(DELAY_MS).times(0)).onReceive(message);
@@ -505,11 +499,16 @@ public class UPClientTest extends TestBase {
 
     @Test
     public void testOnReceiveMessageWithUnknownType() {
-        testRegisterListener();
+        testRegisterGenericListener();
         try (MockedStatic<UAttributesValidator> mockedValidator = mockStatic(UAttributesValidator.class)) {
             final UMessage message = buildMessage(null, null);
             final UAttributesValidator dummyValidator = new UAttributesValidator() {
-                @Override public ValidationResult validateType(UAttributes attributes) {
+                @Override
+                public ValidationResult validate(UAttributes attributes) {
+                    return ValidationResult.success();
+                }
+                @Override
+                public ValidationResult validateType(UAttributes attributes) {
                     return ValidationResult.success();
                 }
             };
@@ -521,54 +520,54 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testRegisterRpcListener() {
+    public void testRegisterRequestListener() {
         doReturn(STATUS_OK).when(mManager).enableDispatching(METHOD_URI);
-        assertStatus(UCode.OK, mClient.registerRpcListener(METHOD_URI, mRequestListener));
+        assertStatus(UCode.OK, mClient.registerListener(METHOD_URI, mListener));
         verify(mManager, times(1)).enableDispatching(METHOD_URI);
     }
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testRegisterRpcListenerWithInvalidArgument() {
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(UUri.getDefaultInstance(), mRequestListener));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(RESOURCE_URI, mRequestListener));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerRpcListener(METHOD_URI, null));
+    public void testRegisterRequestListenerWithInvalidArgument() {
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(UUri.getDefaultInstance(), mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(null, mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.registerListener(METHOD_URI, null));
         verify(mManager, never()).enableDispatching(METHOD_URI);
     }
 
     @Test
-    public void testRegisterRpcListenerDifferentMethods() {
+    public void testRegisterRequestListenerDifferentMethods() {
         doReturn(STATUS_OK).when(mManager).enableDispatching(METHOD_URI);
         doReturn(STATUS_OK).when(mManager).enableDispatching(METHOD2_URI);
-        assertStatus(UCode.OK, mClient.registerRpcListener(METHOD_URI, mRequestListener));
-        assertStatus(UCode.OK, mClient.registerRpcListener(METHOD2_URI, mRequestListener));
+        assertStatus(UCode.OK, mClient.registerListener(METHOD_URI, mListener));
+        assertStatus(UCode.OK, mClient.registerListener(METHOD2_URI, mListener));
         verify(mManager, times(1)).enableDispatching(METHOD_URI);
         verify(mManager, times(1)).enableDispatching(METHOD2_URI);
     }
 
     @Test
-    public void testRegisterRpcListenerSame() {
-        testRegisterRpcListener();
-        assertStatus(UCode.OK, mClient.registerRpcListener(METHOD_URI, mRequestListener));
+    public void testRegisterRequestListenerSame() {
+        testRegisterRequestListener();
+        assertStatus(UCode.OK, mClient.registerListener(METHOD_URI, mListener));
         verify(mManager, times(1)).enableDispatching(METHOD_URI);
     }
 
     @Test
-    public void testRegisterRpcListenerNotFirst() {
-        testRegisterRpcListener();
-        assertStatus(UCode.ALREADY_EXISTS, mClient.registerRpcListener(METHOD_URI, mRequestListener2));
+    public void testRegisterRequestListenerNotFirst() {
+        testRegisterRequestListener();
+        assertStatus(UCode.ALREADY_EXISTS, mClient.registerListener(METHOD_URI, mListener2));
         verify(mManager, times(1)).enableDispatching(METHOD_URI);
     }
 
     @Test
-    public void testRegisterRpcListenerFailed() {
+    public void testRegisterRequestListenerFailed() {
         doReturn(buildStatus(UCode.UNAUTHENTICATED)).when(mManager).enableDispatching(METHOD_URI);
-        assertStatus(UCode.UNAUTHENTICATED, mClient.registerRpcListener(METHOD_URI, mRequestListener));
+        assertStatus(UCode.UNAUTHENTICATED, mClient.registerListener(METHOD_URI, mListener));
     }
 
     @Test
-    public void testRegisterRpcListenerWhenReconnected() {
-        testRegisterRpcListener();
+    public void testRegisterRequestListenerWhenReconnected() {
+        testRegisterRequestListener();
         mClient.getConnectionCallback().onConnectionInterrupted();
         verify(mManager, timeout(DELAY_MS).times(0)).disableDispatchingQuietly(METHOD_URI);
         mClient.getConnectionCallback().onConnected();
@@ -576,138 +575,86 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    public void testUnregisterRpcListener() {
-        testRegisterRpcListener();
+    public void testUnregisterRequestListener() {
+        testRegisterRequestListener();
         doReturn(STATUS_OK).when(mManager).disableDispatching(METHOD_URI);
-        assertStatus(UCode.OK, mClient.unregisterRpcListener(METHOD_URI, mRequestListener));
+        assertStatus(UCode.OK, mClient.unregisterListener(METHOD_URI, mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(METHOD_URI);
     }
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testUnregisterRpcListenerWithInvalidArgument() {
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(UUri.getDefaultInstance(), mRequestListener));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(RESOURCE_URI, mRequestListener));
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(METHOD_URI, null));
+    public void testUnregisterRequestListenerWithInvalidArgument() {
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(UUri.getDefaultInstance(), mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(null, mListener));
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(METHOD_URI, null));
         verify(mManager, never()).disableDispatchingQuietly(METHOD_URI);
     }
 
     @Test
-    public void testUnregisterRpcListenerSame() {
-        testUnregisterRpcListener();
-        assertStatus(UCode.OK, mClient.unregisterRpcListener(METHOD_URI, mRequestListener));
+    public void testUnregisterRequestListenerSame() {
+        testUnregisterRequestListener();
+        assertStatus(UCode.OK, mClient.unregisterListener(METHOD_URI, mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(METHOD_URI);
     }
 
     @Test
-    public void testUnregisterRpcListenerNotRegistered() {
-        testRegisterRpcListener();
-        assertStatus(UCode.OK, mClient.unregisterRpcListener(METHOD_URI, mRequestListener2));
+    public void testUnregisterRequestListenerNotRegistered() {
+        testRegisterRequestListener();
+        assertStatus(UCode.OK, mClient.unregisterListener(METHOD_URI, mListener2));
         verify(mManager, times(0)).disableDispatchingQuietly(METHOD_URI);
     }
 
     @Test
-    public void testUnregisterRpcListenerWhenDisconnected() {
-        testRegisterRpcListener();
+    public void testUnregisterRequestListenerWhenDisconnected() {
+        testRegisterRequestListener();
         mClient.getConnectionCallback().onDisconnected();
         final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
-        verify(mRequestListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage), any());
+        verify(mListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage));
     }
 
     @Test
-    public void testUnregisterRpcListenerFromAllMethods() {
-        testRegisterRpcListenerDifferentMethods();
-        assertStatus(UCode.OK, mClient.unregisterRpcListener(mRequestListener));
+    public void testUnregisterRequestListenerFromAllMethods() {
+        testRegisterRequestListenerDifferentMethods();
+        assertStatus(UCode.OK, mClient.unregisterListener(mListener));
         verify(mManager, times(1)).disableDispatchingQuietly(METHOD_URI);
         verify(mManager, times(1)).disableDispatchingQuietly(METHOD2_URI);
     }
 
     @Test
     @SuppressWarnings("DataFlowIssue")
-    public void testUnregisterRpcListenerFromAllMethodsWithInvalidArgument() {
-        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterRpcListener(null));
+    public void testUnregisterRequestListenerFromAllMethodsWithInvalidArgument() {
+        assertStatus(UCode.INVALID_ARGUMENT, mClient.unregisterListener(null));
     }
 
     @Test
-    public void testUnregisterRpcListenerFromAllMethodsNotRegistered() {
-        testRegisterRpcListenerDifferentMethods();
-        assertStatus(UCode.OK, mClient.unregisterRpcListener(mRequestListener2));
+    public void testUnregisterRequestListenerFromAllMethodsNotRegistered() {
+        testRegisterRequestListenerDifferentMethods();
+        assertStatus(UCode.OK, mClient.unregisterListener(mListener2));
         verify(mManager, times(0)).disableDispatchingQuietly(METHOD_URI);
         verify(mManager, times(0)).disableDispatchingQuietly(METHOD2_URI);
     }
 
     @Test
     public void testOnReceiveRequestMessage() {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), any());
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage));
     }
 
     @Test
     public void testOnReceiveRequestMessageNotRegistered() {
-        testUnregisterRpcListener();
+        testUnregisterRequestListener();
         final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
         mClient.getListener().onReceive(requestMessage);
-        verify(mRequestListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage), any());
+        verify(mListener, timeout(DELAY_MS).times(0)).onReceive(eq(requestMessage));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    public void testSendResponseMessage() {
-        testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
-        mClient.getListener().onReceive(requestMessage);
-        final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), captor.capture());
-        final CompletableFuture<UPayload> responseFuture = captor.getValue();
-        responseFuture.complete(PAYLOAD);
-        verify(mManager, timeout(DELAY_MS).times(1)).send(argThat(message -> {
-            assertEquals(PAYLOAD, message.getPayload());
-            assertEquals(METHOD_URI, message.getAttributes().getSource());
-            assertEquals(RESPONSE_URI, message.getAttributes().getSink());
-            return true;
-        }));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    public void testSendResponseMessageWithCommStatus() {
-        testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
-        mClient.getListener().onReceive(requestMessage);
-        final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), captor.capture());
-        final CompletableFuture<UPayload> responseFuture = captor.getValue();
-        responseFuture.completeExceptionally(new UStatusException(UCode.ABORTED, "Aborted"));
-        verify(mManager, timeout(DELAY_MS).times(1)).send(argThat(message -> {
-            assertEquals(UPayload.getDefaultInstance(), message.getPayload());
-            assertEquals(METHOD_URI, message.getAttributes().getSource());
-            assertEquals(RESPONSE_URI, message.getAttributes().getSink());
-            assertEquals(UCode.ABORTED_VALUE, message.getAttributes().getCommstatus());
-            return true;
-        }));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    public void testSendResponseMessageNoPayload() {
-        testRegisterRpcListener();
-        final UMessage requestMessage = buildMessage(PAYLOAD, buildRequestAttributes(RESPONSE_URI, METHOD_URI));
-        mClient.getListener().onReceive(requestMessage);
-        sleep(DELAY_MS);
-        final ArgumentCaptor<CompletableFuture<UPayload>> captor = ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(eq(requestMessage), captor.capture());
-        final CompletableFuture<UPayload> responseFuture = captor.getValue();
-        responseFuture.complete(null);
-        verify(mManager, timeout(DELAY_MS).times(0)).send(any());
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
     public void testInvokeMethod() throws Exception {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         redirectMessages(mManager, mClient);
 
         final CompletableFuture<UMessage> responseFuture =
@@ -715,24 +662,57 @@ public class UPClientTest extends TestBase {
         assertFalse(responseFuture.isDone());
 
         final ArgumentCaptor<UMessage> requestCaptor = ArgumentCaptor.forClass(UMessage.class);
-        final ArgumentCaptor<CompletableFuture<UPayload>> responseFutureCaptor =
-                ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1))
-                .onReceive(requestCaptor.capture(), responseFutureCaptor.capture());
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(requestCaptor.capture());
         final UMessage requestMessage = requestCaptor.getValue();
+        final UAttributes requestAttributes = requestMessage.getAttributes();
         assertEquals(REQUEST_PAYLOAD, requestMessage.getPayload());
-        assertEquals(RESPONSE_URI, requestMessage.getAttributes().getSource());
-        assertEquals(METHOD_URI, requestMessage.getAttributes().getSink());
-        assertEquals(OPTIONS.timeout(), requestMessage.getAttributes().getTtl());
-        assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestMessage.getAttributes().getType());
-        responseFutureCaptor.getValue().complete(RESPONSE_PAYLOAD);
+        assertEquals(RESPONSE_URI, requestAttributes.getSource());
+        assertEquals(METHOD_URI, requestAttributes.getSink());
+        assertEquals(OPTIONS.getPriority(), requestAttributes.getPriority());
+        assertEquals(OPTIONS.getTtl(), requestAttributes.getTtl());
+        assertEquals(OPTIONS.getToken(), requestAttributes.getToken());
+        assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestAttributes.getType());
+        mClient.send(buildMessage(RESPONSE_PAYLOAD, UAttributesBuilder.response(requestMessage.getAttributes()).build()));
 
         final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        final UAttributes responseAttributes = responseMessage.getAttributes();
         assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
-        assertEquals(METHOD_URI, responseMessage.getAttributes().getSource());
-        assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
-        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
-        assertEquals(requestMessage.getAttributes().getId(), responseMessage.getAttributes().getReqid());
+        assertEquals(METHOD_URI, responseAttributes.getSource());
+        assertEquals(RESPONSE_URI, responseAttributes.getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseAttributes.getType());
+        assertEquals(requestAttributes.getId(), responseAttributes.getReqid());
+    }
+
+    @Test
+    public void testInvokeMethodWithoutToken() throws Exception {
+        testRegisterRequestListener();
+        redirectMessages(mManager, mClient);
+
+        final CallOptions options = CallOptions.newBuilder(OPTIONS).clearToken().build();
+        final CompletableFuture<UMessage> responseFuture =
+                mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, options).toCompletableFuture();
+        assertFalse(responseFuture.isDone());
+
+        final ArgumentCaptor<UMessage> requestCaptor = ArgumentCaptor.forClass(UMessage.class);
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(requestCaptor.capture());
+        final UMessage requestMessage = requestCaptor.getValue();
+        final UAttributes requestAttributes = requestMessage.getAttributes();
+        assertEquals(REQUEST_PAYLOAD, requestMessage.getPayload());
+        assertEquals(RESPONSE_URI, requestAttributes.getSource());
+        assertEquals(METHOD_URI, requestAttributes.getSink());
+        assertEquals(options.getPriority(), requestAttributes.getPriority());
+        assertEquals(options.getTtl(), requestAttributes.getTtl());
+        assertEquals(options.getToken(), requestAttributes.getToken());
+        assertEquals(UMessageType.UMESSAGE_TYPE_REQUEST, requestAttributes.getType());
+        mClient.send(buildMessage(RESPONSE_PAYLOAD, UAttributesBuilder.response(requestMessage.getAttributes()).build()));
+
+        final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        final UAttributes responseAttributes = responseMessage.getAttributes();
+        assertEquals(RESPONSE_PAYLOAD, responseMessage.getPayload());
+        assertEquals(METHOD_URI, responseAttributes.getSource());
+        assertEquals(RESPONSE_URI, responseAttributes.getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseAttributes.getType());
+        assertEquals(requestAttributes.getId(), responseAttributes.getReqid());
     }
 
     @Test
@@ -749,15 +729,22 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
+    public void testInvokeMethodWithInvalidPriority() {
+        final CallOptions options = CallOptions.newBuilder(OPTIONS).setPriority(UPriority.UPRIORITY_CS0).build();
+        assertStatus(UCode.INVALID_ARGUMENT, toStatus(assertThrows(ExecutionException.class,
+                () -> mClient.invokeMethod(METHOD_URI, PAYLOAD, options).toCompletableFuture().get())));
+    }
+
+    @Test
     public void testInvokeMethodOtherResponseReceive() {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         redirectMessages(mManager, mClient);
 
         final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), any());
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(any());
         final UMessage responseMessage =
                 buildMessage(PAYLOAD, buildResponseAttributes(METHOD_URI, RESPONSE_URI, createId()));
         mClient.getListener().onReceive(responseMessage);
@@ -768,14 +755,14 @@ public class UPClientTest extends TestBase {
 
     @Test
     public void testInvokeMethodWhenDisconnected() {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         redirectMessages(mManager, mClient);
 
         final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), any());
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(any());
         final UMessage responseMessage =
                 buildMessage(PAYLOAD, buildResponseAttributes(METHOD_URI, RESPONSE_URI, createId()));
         mClient.getListener().onReceive(responseMessage);
@@ -786,43 +773,52 @@ public class UPClientTest extends TestBase {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testInvokeMethodCompletedWithCommStatus() {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         redirectMessages(mManager, mClient);
 
         final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
-        final ArgumentCaptor<CompletableFuture<UPayload>> responseFutureCaptor =
-                ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), responseFutureCaptor.capture());
-        responseFutureCaptor.getValue().completeExceptionally(new UStatusException(UCode.CANCELLED, "Cancelled"));
-        assertStatus(UCode.CANCELLED, toStatus(assertThrows(
+        final ArgumentCaptor<UMessage> requestCaptor = ArgumentCaptor.forClass(UMessage.class);
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(requestCaptor.capture());
+        final UMessage requestMessage = requestCaptor.getValue();
+        mClient.send(buildMessage(null, UAttributesBuilder
+                .response(requestMessage.getAttributes())
+                .withCommStatus(UCode.ABORTED)
+                .build()));
+
+        assertStatus(UCode.ABORTED, toStatus(assertThrows(
                 ExecutionException.class, () -> responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS))));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testInvokeMethodCompletedWithCommStatusOk() throws Exception {
-        testRegisterRpcListener();
+        testRegisterRequestListener();
         redirectMessages(mManager, mClient);
 
         final CompletableFuture<UMessage> responseFuture =
                 mClient.invokeMethod(METHOD_URI, REQUEST_PAYLOAD, OPTIONS).toCompletableFuture();
         assertFalse(responseFuture.isDone());
 
-        final ArgumentCaptor<CompletableFuture<UPayload>> responseFutureCaptor =
-                ArgumentCaptor.forClass(CompletableFuture.class);
-        verify(mRequestListener, timeout(DELAY_MS).times(1)).onReceive(any(), responseFutureCaptor.capture());
-        responseFutureCaptor.getValue().completeExceptionally(new UStatusException(UCode.OK, "No error"));
+        final ArgumentCaptor<UMessage> requestCaptor = ArgumentCaptor.forClass(UMessage.class);
+        verify(mListener, timeout(DELAY_MS).times(1)).onReceive(requestCaptor.capture());
+        final UMessage requestMessage = requestCaptor.getValue();
+        final UAttributes requestAttributes = requestMessage.getAttributes();
+        mClient.send(buildMessage(null, UAttributesBuilder
+                .response(requestMessage.getAttributes())
+                .withCommStatus(UCode.OK)
+                .build()));
 
         final UMessage responseMessage = responseFuture.get(DELAY_MS, TimeUnit.MILLISECONDS);
+        final UAttributes responseAttributes = responseMessage.getAttributes();
         assertEquals(UPayload.getDefaultInstance(), responseMessage.getPayload());
-        assertEquals(METHOD_URI, responseMessage.getAttributes().getSource());
-        assertEquals(RESPONSE_URI, responseMessage.getAttributes().getSink());
-        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseMessage.getAttributes().getType());
+        assertEquals(METHOD_URI, responseAttributes.getSource());
+        assertEquals(RESPONSE_URI, responseAttributes.getSink());
+        assertEquals(UMessageType.UMESSAGE_TYPE_RESPONSE, responseAttributes.getType());
+        assertEquals(requestAttributes.getId(), responseAttributes.getReqid());
+        assertEquals(UCode.OK, responseAttributes.getCommstatus());
     }
 
     @Test
