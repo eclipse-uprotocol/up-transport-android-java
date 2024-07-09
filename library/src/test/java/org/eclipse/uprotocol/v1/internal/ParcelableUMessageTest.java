@@ -23,6 +23,7 @@
  */
 package org.eclipse.uprotocol.v1.internal;
 
+import static org.eclipse.uprotocol.transport.builder.UMessageBuilder.request;
 import static org.junit.Assert.assertEquals;
 
 import android.os.Parcel;
@@ -39,7 +40,7 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public class ParcelableUMessageTest extends TestBase {
-    private static final UMessage MESSAGE = buildMessage(PAYLOAD, ATTRIBUTES);
+    private static final UMessage MESSAGE = request(CLIENT_URI, METHOD_URI, TTL).build(PAYLOAD);
 
     private Parcel mParcel;
 

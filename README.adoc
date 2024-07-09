@@ -1,11 +1,11 @@
-= uProtocol Client Android Java Library
+= uProtocol Transport Android Java Library
 :toc:
 :toclevels: 4
 :sectnums:
 :source-highlighter: coderay
 
 == Overview
-The following is the uProtocol client library that implements uTransport, RpcClient and RpcService defined in https://github.com/eclipse-uprotocol/up-java[uProtocol Java Library] using Android Binder. It also includes some commonly used utilities for error handling.
+The following is the uProtocol library that implements uTransport defined in https://github.com/eclipse-uprotocol/up-java[uProtocol Java Library] using Android Binder. It also includes some commonly used utilities for error handling.
 
 == Getting Started
 === Importing the Library
@@ -15,13 +15,13 @@ If you are using Gradle, add the following to your _build.gradle_ file's depende
 ----
 android {
     dependencies {
-        implementation 'org.eclipse.uprotocol:up-client-android-java::1.5.+'
+        implementation 'org.eclipse.uprotocol:up-transport-android-java::0.1.+'
     }
 }
 ----
 
 === Configuring the Library
-`UPClient`, by default, establishes a connection to uBus service that is integrated into the system as part of `"org.eclipse.uprotocol.core"` package.
+`UTransprtAndroid`, by default, establishes a connection to uBus service that is integrated into the system as part of `"org.eclipse.uprotocol.core"` package.
 
 If a service that implements `IUBus.aidl` interface is integrated in a different package, you should configure the library by specifying that component or just that package.
 
@@ -35,26 +35,25 @@ If a service that implements `IUBus.aidl` interface is integrated in a different
 
 === Using the Library
 ==== Connecting to uTransport
-Before using the `UPClient` APIs, a uE must create an instance and connect to uBus.
+Before using the `UTransportAndroid` APIs, a uE must create an instance and open connection to uBus.
 
 First create an instance with one of static factory methods:
 
 [,java]
 ----
-static UPClient create(Context context, Handler handler, ServiceLifecycleListener listener)
-static UPClient create(Context context, Executor executor, ServiceLifecycleListener listener)
-static UPClient create(Context context, UEntity entity, Handler handler, ServiceLifecycleListener listener)
-static UPClient create(Context context, UEntity entity, Executor executor, ServiceLifecycleListener listener)
+static UTransportAndroid create(Context context, Handler handler)
+static UTransportAndroid create(Context context, Executor executor)
+static UTransportAndroid create(Context context, UUri source, Handler handler)
+static UTransportAndroid create(Context context, UUri source, Executor executor)
 ----
 
 [%hardbreaks]
 `context` is an application context.
-`entity` is information about uE containing its name and major version (MUST match the meta data in the manifest).
+`source` is an address of uE containing its name and major version (MUST match the meta data in the manifest).
 `handler` is a handler on which callbacks should execute, or null to execute on the application's main thread.
 `executor` is an executor on which callbacks should execute, or null to execute on the application's main thread executor.
-`listener` is a listener for monitoring uBus lifecycle.
 
-NOTE: Every Android uE MUST declare its name and major version in the manifest.
+NOTE: Every Android uE MUST declare its id and major version in the manifest.
 
 For the example below you may use any `create(...)` factory method.
 
@@ -66,8 +65,8 @@ For the example below you may use any `create(...)` factory method.
     ...
     <application android:label="@string/app_name" ...>
         <meta-data
-            android:name="uprotocol.entity.name"
-            android:value="example.client" />
+            android:name="uprotocol.entity.id"
+            android:value="100" />
         <meta-data
             android:name="uprotocol.entity.version"
             android:value="1" />
@@ -79,7 +78,7 @@ For the example below you may use any `create(...)` factory method.
 </manifest>
 ----
 
-For the next example you should create a separate instance of `UPClient` for each uE using `create(..., UEntity entity,...)` factory method.
+For the next example you should create a separate instance of `UTransportAndroid` for each uE using `create(..., UUri source,...)` factory method.
 
 .Example 2: Several Android uEs bundled together in APK
 [,xml]
@@ -92,8 +91,8 @@ For the next example you should create a separate instance of `UPClient` for eac
             android:name=".ExteriorLightingService"
             ... >
             <meta-data
-                android:name="uprotocol.entity.name"
-                android:value="body.lighting.exterior" />
+                android:name="uprotocol.entity.id"
+                android:value="100" />
             <meta-data
                 android:name="uprotocol.entity.version"
                 android:value="1" />
@@ -103,8 +102,8 @@ For the next example you should create a separate instance of `UPClient` for eac
             android:name=".InteriorLightingService"
             ... >
             <meta-data
-                android:name="uprotocol.entity.name"
-                android:value="body.lighting.interior" />
+                android:name="uprotocol.entity.id"
+                android:value="101" />
             <meta-data
                 android:name="uprotocol.entity.version"
                 android:value="1" />
@@ -113,95 +112,51 @@ For the next example you should create a separate instance of `UPClient` for eac
 </manifest>
 ----
 
-Then connect to uBus using a reactive API below:
+Then open connection to uBus using a reactive API below:
 
 [,java]
 ----
-CompletionStage<UStatus> connect()
+CompletionStage<UStatus> open()
 ----
 
-When you are done with the `UPClient` you should disconnect from uBus:
-
-[,java]
-----
-CompletionStage<UStatus> disconnect()
-----
-
-You cannot use other methods until the `UPClient` is connected. When this happens the `CompletionStage<UStatus>` returned by connect() will be completed and you also will receive the `onLifecycleChanged(..., true)` callback on your service lifecycle listener. You may query the connected status using these methods:
+When you are done with the `UTransportAndroid` you should close the connection:
 
 [,java]
 ----
-boolean isDisconnected()
-boolean isConnecting()
-boolean isConnected()
+void close()
+----
+
+You cannot use other methods until the `UTransportAndroid` is connected. When this happens the `CompletionStage<UStatus>` returned by open() will be completed. You may query the connection status using this method:
+
+[,java]
+----
+boolean isOpened()
 ----
 
 ==== Sending a UMessage
-For both, publisher/subscriber or observer (notification) design patterns, a uE should use the `UPClient` to send messages to consumers using any method below:
+The method below is used to send messages to consumers:
 
 [,java]
 ----
-UStatus send(UUri source, UPayload payload, UAttributes attributes)
-UStatus send(UMessage message)
+CompletionStage<UStatus> send(UMessage message)
 ----
 
 ==== Registering a UListener
-In order to start receiving messages, a consumer should register a listener for a topic:
+In order to start receiving messages, a consumer should register a listener:
 
 [,java]
 ----
-UStatus registerListener(UUri topic, UListener listener)
+CompletionStage<UStatus> registerListener(UUri sourceFilter, UListener listener)
+CompletionStage<UStatus> registerListener(UUri sourceFilter, UUri sinkFilter, UListener listener)
 ----
-*For the publisher/subscriber design pattern*, the precondition for a callback is that the uE needs to subscribe to the topic AND register the listener.
+A consumer can use the same listener for multiple filters, or register different listeners with the same filters.
 
-Given the precondition, the callback will be triggered in any of the following cases:
-
-. As soon as listener is registered if there is already a sent message for that topic that is in cache, OR
-. Whenever the producer sends a new message for that topic
-
-*For the notification design pattern*, the only precondition is that uE needs to register the listener.
-Once the listener is registered the callback will be triggered whenever the notification message is sent by the producer.
-
-A consumer can use the same listener for multiple topics, or register different listeners to the same topic.
-
-To unregister a listener from receiving topic messages:
+To unregister a listener from receiving messages:
 
 [,java]
 ----
-UStatus unregisterListener(UUri topic, UListener listener)
-----
-
-To unregister a listener from all topics:
-
-[,java]
-----
-UStatus unregisterListener(UListener listener)
-----
-
-==== Registering a URpcListener
-A uE with a service role should register a listener for a particular method URI to be notified when request messages are sent against said method.
-
-NOTE: Only one listener is allowed to be registered per a method URI.
-
-[,java]
-----
-UStatus registerRpcListener(UUri methodUri, URpcListener listener)
-----
-
-To stop processing request messages for a specific method URI or all of the, a service uE should unregister the listener:
-
-[,java]
-----
-UStatus unregisterRpcListener(UUri methodUri, URpcListener listener)
-UStatus unregisterRpcListener(URpcListener listener)
-----
-
-==== Invoking an RPC Method
-Code generators for uProtocol services defined in proto files primarily utilize the following method. However, clients also have the option to directly use it for invoking RPC methods.
-
-[,java]
-----
-CompletionStage<UPayload> invokeMethod(UUri methodUri, UPayload requestPayload, CallOptions options)
+CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UListener listener)
+CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UUri sinkFilter, UListener listener)
 ----
 
 === Building the Library

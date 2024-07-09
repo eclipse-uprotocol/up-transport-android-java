@@ -76,17 +76,17 @@ public class ParcelableUUriTest extends TestBase {
 
     @Test
     public void testCreateFromParcelWithoutAuthority() {
-        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearAuthority().build());
+        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearAuthorityName().build());
     }
 
     @Test
     public void testCreateFromParcelWithoutEntity() {
-        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearEntity().build());
+        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearUeId().clearUeVersionMajor().build());
     }
 
     @Test
     public void testCreateFromParcelWithoutResource() {
-        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearResource().build());
+        checkWriteAndRead(UUri.newBuilder(RESOURCE_URI_REMOTE).clearResourceId().build());
     }
 
     @Test

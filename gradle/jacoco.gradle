@@ -23,12 +23,19 @@ tasks.register('jacocoTestReport', JacocoReport) {
         html.getRequired().set(true)
     }
     def buildDir = layout.buildDirectory.get()
-    executionData.from = ["${buildDir}/jacoco/testDebugUnitTest.exec"]
-    sourceDirectories.from = ["${projectDir}/src/main/java"]
-    classDirectories.from = fileTree(
-            dir: "${buildDir}/intermediates/javac/debug/classes/",
-            excludes: ['**/IU*', '**/BuildConfig.class']
-    )
+    def excludeClasses = [
+            '**/BuildConfig.class',
+            '**/IU*',
+    ]
+    def javaClasses = fileTree(dir: "${buildDir}/intermediates/javac/debug/compileDebugJavaWithJavac/classes/", excludes: excludeClasses)
+    def kotlinClasses = fileTree(dir: "${buildDir}/tmp/kotlin-classes/debug/", excludes: excludeClasses)
+    getClassDirectories().setFrom(files([javaClasses, kotlinClasses]))
+    getSourceDirectories().setFrom(files([
+            "${projectDir}/src/main/java",
+            "${buildDir}/generated/source/kapt/debug/",
+    ]))
+    getExecutionData().setFrom(files("${buildDir}/jacoco/testDebugUnitTest.exec"))
+
     doLast {
         println "Unit-test coverage report generated at folder: ${buildDir}/reports/jacoco/jacocoTestReport/"
     }

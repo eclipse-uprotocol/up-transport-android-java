@@ -32,12 +32,23 @@ android {
         consumerProguardFiles 'consumer-rules.pro'
     }
 
+    signingConfigs {
+        platform {
+            storeFile file('certs/platform.keystore')
+            storePassword 'android'
+            keyAlias 'platform'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
         debug {
+            signingConfig signingConfigs.platform
             debuggable true
             minifyEnabled false
         }
         release {
+            signingConfig signingConfigs.platform
             minifyEnabled true
             proguardFiles 'proguard-rules.pro'
         }
@@ -48,8 +59,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility config.jvm.version.java
+        targetCompatibility config.jvm.version.java
     }
 
     testNamespace "${config.namespace}.test"
@@ -75,7 +86,6 @@ android {
 
     publishing {
         singleVariant('release') {
-            withJavadocJar()
             withSourcesJar()
         }
     }

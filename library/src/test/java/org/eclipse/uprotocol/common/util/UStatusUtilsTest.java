@@ -35,7 +35,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.eclipse.uprotocol.common.UStatusException;
+import org.eclipse.uprotocol.communication.UStatusException;
 import org.eclipse.uprotocol.v1.UCode;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.junit.Test;

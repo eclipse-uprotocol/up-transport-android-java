@@ -18,11 +18,11 @@
 -keep class * extends com.google.protobuf.** {*;}
 -keep class * extends com.google.protobuf.**$** {*;}
 
--keep public class com.ultifi.core.** {
+-keep public class org.eclipse.uprotocol.** {
     public protected *;
     <init>();
 }
 
--keep public interface com.ultifi.core.** {
+-keep public interface org.eclipse.uprotocol.** {
     *;
 }

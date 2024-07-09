@@ -23,123 +23,63 @@
  */
 package org.eclipse.uprotocol;
 
+import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.toStatus;
-import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
+import static org.eclipse.uprotocol.communication.UPayload.packToAny;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import androidx.annotation.NonNull;
 
 import com.google.protobuf.Empty;
 
-import org.eclipse.uprotocol.common.UStatusException;
-import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
-import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
-import org.eclipse.uprotocol.v1.UAttributes;
+import org.eclipse.uprotocol.communication.CallOptions;
+import org.eclipse.uprotocol.communication.UPayload;
+import org.eclipse.uprotocol.communication.UStatusException;
 import org.eclipse.uprotocol.v1.UCode;
-import org.eclipse.uprotocol.v1.UEntity;
-import org.eclipse.uprotocol.v1.UMessage;
-import org.eclipse.uprotocol.v1.UPayload;
-import org.eclipse.uprotocol.v1.UPriority;
-import org.eclipse.uprotocol.v1.UResource;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUri;
 
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("SameParameterValue")
 public class TestBase {
-    protected static final UEntity SERVICE = UEntity.newBuilder()
-            .setName("client.test")
-            .setVersionMajor(1)
-            .build();
-    protected static final UEntity CLIENT = UEntity.newBuilder()
-            .setName("client.test")
-            .setVersionMajor(1)
-            .build();
-    protected static final UResource RESOURCE = UResource.newBuilder()
-            .setName("resource")
-            .setInstance("main")
-            .setMessage("State")
-            .build();
-    protected static final UResource RESOURCE2 = UResource.newBuilder()
-            .setName("resource2")
-            .setInstance("main2")
-            .setMessage("State2")
-            .build();
-    protected static final UUri RESOURCE_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(RESOURCE)
-            .build();
-    protected static final UUri RESOURCE2_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(RESOURCE2)
-            .build();
-    protected static final UUri METHOD_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(UResourceBuilder.forRpcRequest("method"))
-            .build();
-    protected static final UUri METHOD2_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(UResourceBuilder.forRpcRequest("method2"))
-            .build();
-    protected static final UUri RESPONSE_URI = UUri.newBuilder()
-            .setEntity(CLIENT)
-            .setResource(UResourceBuilder.forRpcResponse())
-            .build();
+    protected static final int VERSION = 1;
+    protected static final int CLIENT_ID = 0x50;
+    protected static final int SERVICE_ID = 0x50;
+    protected static final int METHOD_ID = 0x1;
+    protected static final int RESOURCE_ID = 0x8000;
     protected static final UUri CLIENT_URI = UUri.newBuilder()
-            .setEntity(CLIENT)
+            .setUeId(CLIENT_ID)
+            .setUeVersionMajor(VERSION)
+            .build();
+    protected static final UUri SERVICE_URI = UUri.newBuilder()
+            .setUeId(SERVICE_ID)
+            .setUeVersionMajor(VERSION)
+            .build();
+    protected static final UUri METHOD_URI = UUri.newBuilder(SERVICE_URI)
+            .setResourceId(METHOD_ID)
+            .build();
+    protected static final UUri RESOURCE_URI = UUri.newBuilder(SERVICE_URI)
+            .setResourceId(RESOURCE_ID)
             .build();
     protected static final UPayload PAYLOAD = packToAny(Empty.getDefaultInstance());
-    protected static final int TTL = 5000;
+    protected static final UPayload PAYLOAD2 = packToAny(STATUS_OK);
+    protected static final int TTL = CallOptions.DEFAULT.timeout();
     protected static final long CONNECTION_TIMEOUT_MS = 3000;
     protected static final long DELAY_MS = 100;
-
-    protected static @NonNull UAttributes buildPublishAttributes(@NonNull UUri source) {
-        return newPublishAttributesBuilder(source).build();
-    }
-
-    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder(@NonNull UUri source) {
-        return UAttributesBuilder.publish(source, UPriority.UPRIORITY_CS0);
-    }
-
-    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(@NonNull UUri source, @NonNull UUri sink) {
-        return UAttributesBuilder.notification(source, sink, UPriority.UPRIORITY_CS0);
-    }
-
-    protected static @NonNull UMessage buildMessage(UPayload payload, UAttributes attributes) {
-        final UMessage.Builder builder = UMessage.newBuilder();
-        if (payload != null) {
-            builder.setPayload(payload);
-        }
-        if (attributes != null) {
-            builder.setAttributes(attributes);
-        }
-        return builder.build();
-    }
-
-    protected static void connect(@NonNull UPClient client) {
-        assertStatus(UCode.OK, getOrThrow(client.connect().toCompletableFuture(), CONNECTION_TIMEOUT_MS));
-        assertTrue(client.isConnected());
-    }
-
-    protected static void disconnect(@NonNull UPClient client) {
-        assertStatus(UCode.OK, getOrThrow(client.disconnect().toCompletableFuture()));
-        assertTrue(client.isDisconnected());
-    }
 
     protected static void assertStatus(@NonNull UCode code, @NonNull UStatus status) {
         assertEquals(code, status.getCode());
     }
 
-    protected static <T> T getOrThrow(@NonNull Future<T> future) {
-        return getOrThrow(future, DELAY_MS);
+    protected static <T> T getOrThrow(@NonNull CompletionStage<T> stage) {
+        return getOrThrow(stage, DELAY_MS);
     }
 
-    protected static <T> T getOrThrow(@NonNull Future<T> future, long timeout) {
+    protected static <T> T getOrThrow(@NonNull CompletionStage<T> stage, long timeout) {
         try {
-            return future.get(timeout, TimeUnit.MILLISECONDS);
+            return stage.toCompletableFuture().get(timeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new UStatusException(toStatus(e));
         }
