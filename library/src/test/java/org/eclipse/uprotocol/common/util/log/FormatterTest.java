@@ -25,20 +25,18 @@ package org.eclipse.uprotocol.common.util.log;
 
 import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
-import static org.eclipse.uprotocol.common.util.UStatusUtils.getCode;
-import static org.eclipse.uprotocol.common.util.log.Formatter.SEPARATOR_PAIR;
-import static org.eclipse.uprotocol.common.util.log.Formatter.SEPARATOR_PAIRS;
+import static org.eclipse.uprotocol.transport.builder.UMessageBuilder.notification;
+import static org.eclipse.uprotocol.transport.builder.UMessageBuilder.publish;
+import static org.eclipse.uprotocol.uri.factory.UriFactory.ANY;
+import static org.eclipse.uprotocol.uuid.serializer.UuidSerializer.serialize;
 import static org.junit.Assert.assertEquals;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.eclipse.uprotocol.TestBase;
-import org.eclipse.uprotocol.uuid.serializer.LongUuidSerializer;
-import org.eclipse.uprotocol.v1.UAttributes;
+import org.eclipse.uprotocol.uri.validator.UriFilter;
 import org.eclipse.uprotocol.v1.UCode;
-import org.eclipse.uprotocol.v1.UEntity;
 import org.eclipse.uprotocol.v1.UMessage;
-import org.eclipse.uprotocol.v1.UResource;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUID;
 import org.eclipse.uprotocol.v1.UUri;
@@ -53,12 +51,7 @@ public class FormatterTest extends TestBase {
     private static final String KEY2 = "key2";
     private static final String VALUE1 = "value1";
     private static final String VALUE2 = "value2";
-    private static final String MESSAGE1 = KEY1 + SEPARATOR_PAIR + VALUE1;
-    private static final String MESSAGE2 = MESSAGE1 + SEPARATOR_PAIRS + KEY2 + SEPARATOR_PAIR + VALUE2;
     private static final String METHOD = "method";
-    private static final String MESSAGE_STATUS_OK = "status." + METHOD + SEPARATOR_PAIR + "[" +
-            Key.CODE + SEPARATOR_PAIR + getCode(STATUS_OK) + "]" + SEPARATOR_PAIRS + MESSAGE1;
-    private static final String ID_STRING = LongUuidSerializer.instance().serialize(ID);
 
     @Test
     public void testTag() {
@@ -105,12 +98,12 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testJoinGrouped() {
-        assertEquals("[" + MESSAGE1 + "]", Formatter.joinGrouped(KEY1, VALUE1));
+        assertEquals("[key1: value1]", Formatter.joinGrouped(KEY1, VALUE1));
     }
 
     @Test
     public void testJoin() {
-        assertEquals(MESSAGE2, Formatter.join(KEY1, VALUE1, KEY2, VALUE2));
+        assertEquals("key1: value1, key2: value2", Formatter.join(KEY1, VALUE1, KEY2, VALUE2));
     }
 
     @Test
@@ -121,8 +114,8 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testJoinEmptyKey() {
-        assertEquals(MESSAGE1, Formatter.join(KEY1, VALUE1, null, VALUE2));
-        assertEquals(MESSAGE1, Formatter.join(KEY1, VALUE1, "", VALUE2));
+        assertEquals("key1: value1", Formatter.join(KEY1, VALUE1, null, VALUE2));
+        assertEquals("key1: value1", Formatter.join(KEY1, VALUE1, "", VALUE2));
     }
 
     @Test
@@ -135,7 +128,7 @@ public class FormatterTest extends TestBase {
         StringBuilder builder = new StringBuilder();
         Formatter.joinAndAppend(builder, KEY1, VALUE1);
         Formatter.joinAndAppend(builder, KEY2, VALUE2);
-        assertEquals(MESSAGE2, builder.toString());
+        assertEquals("key1: value1, key2: value2", builder.toString());
     }
 
     @Test
@@ -148,12 +141,18 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testStatus() {
-        assertEquals(MESSAGE_STATUS_OK, Formatter.status(METHOD, STATUS_OK, KEY1, VALUE1));
+        assertEquals("status.method: [code: OK], key1: value1", Formatter.status(METHOD, STATUS_OK, KEY1, VALUE1));
+    }
+
+    @Test
+    public void testError() {
+        assertEquals("error: Message, reason: Reason, key1: value1",
+                Formatter.error("Message", new RuntimeException("Reason"), KEY1, VALUE1));
     }
 
     @Test
     public void testStringifyUUID() {
-        assertEquals(ID_STRING, Formatter.stringify(ID));
+        assertEquals(serialize(ID), Formatter.stringify(ID));
     }
 
     @Test
@@ -162,48 +161,24 @@ public class FormatterTest extends TestBase {
     }
 
     @Test
-    public void testStringifyUEntity() {
-        assertEquals("test.client/1", Formatter.stringify(CLIENT));
-    }
-
-    @Test
-    public void testStringifyUEntityWithoutVersionMajor() {
-        assertEquals("test.client", Formatter.stringify(UEntity.newBuilder(CLIENT).clearVersionMajor().build()));
-    }
-
-    @Test
-    public void testStringifyUEntityNull() {
-        assertEquals("", Formatter.stringify((UEntity) null));
-    }
-
-    @Test
-    public void testStringifyUResource() {
-        assertEquals("resource.main#State", Formatter.stringify(RESOURCE));
-    }
-
-    @Test
-    public void testStringifyUResourceWithoutInstance() {
-        assertEquals("resource#State", Formatter.stringify(UResource.newBuilder(RESOURCE).clearInstance().build()));
-    }
-
-    @Test
-    public void testStringifyUResourceWithoutMessage() {
-        assertEquals("resource.main", Formatter.stringify(UResource.newBuilder(RESOURCE).clearMessage().build()));
-    }
-
-    @Test
-    public void testStringifyUResourceNull() {
-        assertEquals("", Formatter.stringify((UResource) null));
-    }
-
-    @Test
     public void testStringifyUUri() {
-        assertEquals("/test.service/1/resource.main#State", Formatter.stringify(RESOURCE_URI));
+        assertEquals("/51/1/8000", Formatter.stringify(RESOURCE_URI));
     }
 
     @Test
     public void testStringifyUUriNull() {
         assertEquals("", Formatter.stringify((UUri) null));
+    }
+
+
+    @Test
+    public void testStringifyUriFilter() {
+        assertEquals("[source: //*/ffff/ff/ffff, sink: /51/1/1]", Formatter.stringify(new UriFilter(ANY, METHOD_URI)));
+    }
+
+    @Test
+    public void testStringifyUriFilterNull() {
+        assertEquals("", Formatter.stringify((UriFilter) null));
     }
 
     @Test
@@ -225,17 +200,16 @@ public class FormatterTest extends TestBase {
 
     @Test
     public void testStringifyUMessage() {
-        final UMessage message = buildMessage(PAYLOAD, ATTRIBUTES);
-        assertEquals("[id: " + ID_STRING + ", " +
-                "source: /test.service/1/rpc.method, sink: /test.client/1/rpc.response, " +
-                "type: UMESSAGE_TYPE_RESPONSE]", Formatter.stringify(message));
+        final UMessage message = notification(RESOURCE_URI, CLIENT_URI).build();
+        assertEquals("[id: " + serialize(message.getAttributes().getId()) + ", " +
+                "source: /51/1/8000, sink: /50/1/0, type: UMESSAGE_TYPE_NOTIFICATION]", Formatter.stringify(message));
     }
 
     @Test
     public void testStringifyUMessageWithoutSink() {
-        final UMessage message = buildMessage(PAYLOAD, UAttributes.newBuilder(ATTRIBUTES).clearSink().build());
-        assertEquals("[id: " + ID_STRING + ", " +
-                "source: /test.service/1/rpc.method, type: UMESSAGE_TYPE_RESPONSE]", Formatter.stringify(message));
+        final UMessage message = publish(RESOURCE_URI).build();
+        assertEquals("[id: " + serialize(message.getAttributes().getId()) + ", " +
+                "source: /51/1/8000, type: UMESSAGE_TYPE_PUBLISH]", Formatter.stringify(message));
     }
 
     @Test
@@ -249,5 +223,12 @@ public class FormatterTest extends TestBase {
         assertEquals("1.0 KB", Formatter.toPrettyMemory(1024));
         assertEquals("1.0 MB", Formatter.toPrettyMemory(1048576));
         assertEquals("1.0 GB", Formatter.toPrettyMemory(1073741824));
+    }
+
+    @Test
+    public void testToPrettyDuration() {
+        assertEquals("0h 0m 0s", Formatter.toPrettyDuration(0));
+        assertEquals("2h 3m 4s", Formatter.toPrettyDuration(2 * 60 * 60 * 1000 + 3 * 60 * 1000 + 4 * 1000));
+        assertEquals("0h 0m -1s", Formatter.toPrettyDuration( -1000));
     }
 }

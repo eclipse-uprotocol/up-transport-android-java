@@ -14,11 +14,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="uprotocol.permission.ACCESS_UBUS" />
+    <queries>
+        <package android:name="org.eclipse.uprotocol.example.service" />
+    </queries>
 
     <application>
         <meta-data
-            android:name="uprotocol.entity.name"
-            android:value="client.test" />
+            android:name="uprotocol.entity.id"
+            android:value="0x50" />
         <meta-data
             android:name="uprotocol.entity.version"
             android:value="1" />

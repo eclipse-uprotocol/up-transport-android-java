@@ -25,7 +25,6 @@ package org.eclipse.uprotocol.core.ubus;
 
 import static android.content.Context.BIND_AUTO_CREATE;
 
-import static org.eclipse.uprotocol.UPClient.TAG_GROUP;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.checkNotNull;
@@ -36,6 +35,7 @@ import static org.eclipse.uprotocol.common.util.log.Formatter.join;
 import static org.eclipse.uprotocol.common.util.log.Formatter.status;
 import static org.eclipse.uprotocol.common.util.log.Formatter.stringify;
 import static org.eclipse.uprotocol.common.util.log.Formatter.tag;
+import static org.eclipse.uprotocol.transport.UTransportAndroid.TAG;
 
 import static java.util.Objects.requireNonNull;
 
@@ -51,19 +51,17 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.eclipse.uprotocol.client.R;
-import org.eclipse.uprotocol.common.UStatusException;
 import org.eclipse.uprotocol.common.util.log.Key;
+import org.eclipse.uprotocol.communication.UStatusException;
+import org.eclipse.uprotocol.transport.R;
 import org.eclipse.uprotocol.transport.UListener;
+import org.eclipse.uprotocol.uri.validator.UriFilter;
 import org.eclipse.uprotocol.v1.UCode;
-import org.eclipse.uprotocol.v1.UEntity;
 import org.eclipse.uprotocol.v1.UMessage;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUri;
-import org.eclipse.uprotocol.v1.internal.ParcelableUEntity;
 import org.eclipse.uprotocol.v1.internal.ParcelableUMessage;
 import org.eclipse.uprotocol.v1.internal.ParcelableUUri;
 
@@ -83,8 +81,6 @@ import java.util.function.Function;
 public final class UBusManager {
     public static final String ACTION_BIND_UBUS = "uprotocol.action.BIND_UBUS";
 
-    public static final int FLAG_BLOCK_AUTO_FETCH = 0x00000001;
-
     private static final int REBIND_BACKOFF_EXPONENT_MAX = 5;
     private static final int REBIND_BACKOFF_BASE = 2;
 
@@ -101,7 +97,7 @@ public final class UBusManager {
     private @interface StateTypeEnum {}
 
     private final Context mContext;
-    private final UEntity mEntity;
+    private final UUri mClientUri;
     private final IBinder mClientToken = new Binder();
     private final ConnectionCallback mConnectionCallback;
     private final UListener mListener;
@@ -227,14 +223,14 @@ public final class UBusManager {
         }
     };
 
-    public UBusManager(@NonNull Context context, @NonNull UEntity entity, @NonNull ConnectionCallback callback,
+    public UBusManager(@NonNull Context context, @NonNull UUri clientUri, @NonNull ConnectionCallback callback,
             @NonNull UListener listener) {
         mContext = requireNonNull(context);
-        mEntity = requireNonNull(entity);
+        mClientUri = requireNonNull(clientUri);
         mConnectionCallback = requireNonNull(callback);
         mListener = requireNonNull(listener);
         mServiceConfig = mContext.getString(R.string.config_UBusService);
-        mTag = tag(entity.getName(), TAG_GROUP);
+        mTag = tag(TAG, Integer.toHexString(clientUri.getUeId()));
         mDebugLoggable = Log.isLoggable(mTag, Log.DEBUG);
         mVerboseLoggable = Log.isLoggable(mTag, Log.VERBOSE);
     }
@@ -249,7 +245,7 @@ public final class UBusManager {
                         if (isOk(status)) {
                             setConnectionStateLocked(STATE_CONNECTING);
                             mConnectionFuture = new CompletableFuture<>();
-                            return mConnectionFuture;
+                            return mConnectionFuture.thenApplyAsync(Function.identity()); // Avoid deadlock
                         } else {
                             handleServiceDisconnectLocked();
                             mConnectionFuture = null;
@@ -393,7 +389,7 @@ public final class UBusManager {
         UStatus status;
         try {
             status = service.registerClient(mContext.getPackageName(),
-                    new ParcelableUEntity(mEntity), mClientToken, 0, mServiceListener).getWrapped();
+                    new ParcelableUUri(mClientUri), mClientToken, 0, mServiceListener).getWrapped();
         } catch (Exception e) {
             status = toStatus(e);
         }
@@ -431,45 +427,40 @@ public final class UBusManager {
         return status;
     }
 
-    public @NonNull UStatus enableDispatching(@NonNull UUri uri) {
+    public @NonNull UStatus enableDispatching(@NonNull UriFilter filter) {
         UStatus status;
         try {
-            status = getServiceOrThrow().enableDispatching(new ParcelableUUri(uri), 0, mClientToken).getWrapped();
+            final ParcelableUUri sourceFilter = new ParcelableUUri(filter.source());
+            final ParcelableUUri sinkFilter = new ParcelableUUri(filter.sink());
+            status = getServiceOrThrow().enableDispatching(sourceFilter, sinkFilter,0, mClientToken).getWrapped();
         } catch (Exception e) {
             status = toStatus(e);
         }
         if (isDebugLoggable(status)) {
-            Log.println(debugOrError(status), mTag, status("enableDispatching", status, Key.URI, stringify(uri)));
+            Log.println(debugOrError(status), mTag, status("enableDispatching", status,
+                    Key.SOURCE, stringify(filter.source()), Key.SINK, stringify(filter.sink())));
         }
         return status;
     }
 
-    public @NonNull UStatus disableDispatching(@NonNull UUri uri) {
+    public @NonNull UStatus disableDispatching(@NonNull UriFilter filter) {
         UStatus status;
         try {
-            status = getServiceOrThrow().disableDispatching(new ParcelableUUri(uri), 0, mClientToken).getWrapped();
+            final ParcelableUUri sourceFilter = new ParcelableUUri(filter.source());
+            final ParcelableUUri sinkFilter = new ParcelableUUri(filter.sink());
+            status = getServiceOrThrow().disableDispatching(sourceFilter, sinkFilter, 0, mClientToken).getWrapped();
         } catch (Exception e) {
             status = toStatus(e);
         }
         if (isDebugLoggable(status)) {
-            Log.println(debugOrError(status), mTag, status("disableDispatching", status, Key.URI, stringify(uri)));
+            Log.println(debugOrError(status), mTag, status("disableDispatching", status,
+                    Key.SOURCE, stringify(filter.source()), Key.SINK, stringify(filter.sink())));
         }
         return status;
     }
 
-    public void disableDispatchingQuietly(@NonNull UUri uri) {
-        disableDispatching(uri);
-    }
-
-    public @Nullable UMessage getLastMessage(@NonNull UUri topic) {
-        try {
-            final ParcelableUMessage[] bundle = getServiceOrThrow()
-                    .pull(new ParcelableUUri(topic), 1, 0, mClientToken);
-            return (bundle != null && bundle.length > 0) ? bundle[0].getWrapped() : null;
-        } catch (Exception e) {
-            Log.e(mTag, status("getLastMessage", toStatus(e), Key.URI, stringify(topic)));
-            return null;
-        }
+    public void disableDispatchingQuietly(@NonNull UriFilter filter) {
+        disableDispatching(filter);
     }
 
     private boolean isDebugLoggable(@NonNull UStatus status) {

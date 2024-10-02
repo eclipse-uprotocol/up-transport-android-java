@@ -24,16 +24,14 @@
 package org.eclipse.uprotocol.core.ubus;
 
 import org.eclipse.uprotocol.core.ubus.IUListener;
-import org.eclipse.uprotocol.v1.internal.ParcelableUEntity;
 import org.eclipse.uprotocol.v1.internal.ParcelableUMessage;
 import org.eclipse.uprotocol.v1.internal.ParcelableUStatus;
 import org.eclipse.uprotocol.v1.internal.ParcelableUUri;
 
 interface IUBus {
-    ParcelableUStatus registerClient(in String packageName, in ParcelableUEntity entity, in IBinder clientToken, in int flags, in IUListener listener);
+    ParcelableUStatus registerClient(in String packageName, in ParcelableUUri clientUri, in IBinder clientToken, in int flags, in IUListener listener);
     ParcelableUStatus unregisterClient(in IBinder clientToken);
     ParcelableUStatus send(in ParcelableUMessage message, in IBinder clientToken);
-    @nullable ParcelableUMessage[] pull(in ParcelableUUri uri, int count, in int flags, IBinder clientToken);
-    ParcelableUStatus enableDispatching(in ParcelableUUri uri, in int flags, IBinder clientToken);
-    ParcelableUStatus disableDispatching(in ParcelableUUri uri, in int flags, IBinder clientToken);
+    ParcelableUStatus enableDispatching(in ParcelableUUri sourceFilter, in ParcelableUUri sinkFilter, in int flags, IBinder clientToken);
+    ParcelableUStatus disableDispatching(in ParcelableUUri sourceFilter, in ParcelableUUri sinkFilter, in int flags, IBinder clientToken);
 }

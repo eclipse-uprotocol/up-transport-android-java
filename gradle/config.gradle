@@ -12,11 +12,17 @@
 ext {
     config = [
         toolsVersion    : '34.0.0',
-        sdkVersion      : 31,
-        minSdkVersion   : 31,
-        namespace       : 'org.eclipse.uprotocol.client',
+        sdkVersion      : 34,
+        minSdkVersion   : 34,
+        namespace       : 'org.eclipse.uprotocol.transport',
         group           : 'org.eclipse.uprotocol',
-        artifact        : 'up-client-android-java',
-        version         : '0.1.2',
+        artifact        : 'up-transport-android-java',
+        version         : '1.0.0',
+        jvm : [
+            version : [
+                java    : JavaVersion.VERSION_17,
+                kotlin  : "17",
+            ]
+        ],
     ]
 }

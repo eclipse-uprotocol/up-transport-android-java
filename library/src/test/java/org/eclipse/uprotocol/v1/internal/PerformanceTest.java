@@ -24,7 +24,7 @@
 package org.eclipse.uprotocol.v1.internal;
 
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
-import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
+import static org.eclipse.uprotocol.transport.builder.UMessageBuilder.request;
 
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -34,7 +34,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.eclipse.uprotocol.TestBase;
 import org.eclipse.uprotocol.v1.UCode;
-import org.eclipse.uprotocol.v1.UEntity;
 import org.eclipse.uprotocol.v1.UMessage;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUri;
@@ -46,10 +45,9 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 @SuppressWarnings("java:S2699")
 public class PerformanceTest extends TestBase {
-    private static final UEntity ENTITY = CLIENT;
     private static final UUri URI = RESOURCE_URI;
     private static final UStatus STATUS = buildStatus(UCode.UNKNOWN, "Unknown error");
-    private static final UMessage MESSAGE = buildMessage(packToAny(STATUS), ATTRIBUTES);
+    private static final UMessage MESSAGE = request(CLIENT_URI, METHOD_URI, TTL).withToken(TOKEN).build(PAYLOAD);
     private static final String PROTOBUF = "Protobuf";
     private static final List<Integer> COUNTS = List.of(1000, 100, 10, 5, 1);
 
@@ -71,15 +69,6 @@ public class PerformanceTest extends TestBase {
         }
         long end = System.nanoTime();
         return (float) (end - start) / (float) count;
-    }
-
-    private void runPerformanceTestParcelableUEntity(int count) {
-        final ParcelableUEntity parcelable = new ParcelableUEntity(ENTITY);
-        final Parcel parcel = Parcel.obtain();
-        float writeAverage = writeParcelable(parcel, parcelable, count);
-        float readAverage = readParcelable(parcel, ParcelableUEntity.CREATOR, count);
-        parcel.recycle();
-        printTableRow(count, writeAverage, readAverage, PROTOBUF);
     }
 
     private void runPerformanceTestParcelableUUri(int count) {
@@ -122,12 +111,6 @@ public class PerformanceTest extends TestBase {
 
     private void runPerformanceTestUMessage(int count) {
         runPerformanceTestParcelableUMessage(count);
-    }
-
-    @Test
-    public void testPerformanceUEntity() {
-        printTableHeader("UEntity");
-        COUNTS.forEach(this::runPerformanceTestParcelableUEntity);
     }
 
     @Test

@@ -26,6 +26,7 @@ package org.eclipse.uprotocol.core.ubus;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.STATUS_OK;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.buildStatus;
 import static org.eclipse.uprotocol.core.ubus.UBusManager.ACTION_BIND_UBUS;
+import static org.eclipse.uprotocol.transport.builder.UMessageBuilder.publish;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -55,9 +56,10 @@ import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.eclipse.uprotocol.TestBase;
-import org.eclipse.uprotocol.client.R;
-import org.eclipse.uprotocol.common.UStatusException;
+import org.eclipse.uprotocol.communication.UStatusException;
+import org.eclipse.uprotocol.transport.R;
 import org.eclipse.uprotocol.transport.UListener;
+import org.eclipse.uprotocol.uri.validator.UriFilter;
 import org.eclipse.uprotocol.v1.UCode;
 import org.eclipse.uprotocol.v1.UMessage;
 import org.eclipse.uprotocol.v1.UStatus;
@@ -75,9 +77,9 @@ import java.util.function.Consumer;
 
 @RunWith(AndroidJUnit4.class)
 public class UBusManagerTest extends TestBase {
-    private static final String SERVICE_PACKAGE = "org.eclipse.uprotocol.core.ubus";
-    private static final ComponentName SERVICE = new ComponentName(SERVICE_PACKAGE, SERVICE_PACKAGE + ".UBusService");
-    private static final UMessage MESSAGE = buildMessage(PAYLOAD, buildPublishAttributes(RESOURCE_URI));
+    private static final String SERVICE_PACKAGE = "org.eclipse.uprotocol.core";
+    private static final ComponentName SERVICE = new ComponentName(SERVICE_PACKAGE, SERVICE_PACKAGE + ".UCoreService");
+    private static final UMessage MESSAGE = publish(RESOURCE_URI).build(PAYLOAD);
     private static final long REBIND_DELAY_MS = 1000 + DELAY_MS;
 
     private Context mContext;
@@ -94,7 +96,7 @@ public class UBusManagerTest extends TestBase {
         mConnectionCallback = mock(ConnectionCallback.class);
         mListener = mock(UListener.class);
         setServiceConfig(SERVICE_PACKAGE);
-        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        mManager = new UBusManager(mContext, CLIENT_URI, mConnectionCallback, mListener);
         mManager.setLoggable(Log.INFO);
         prepareService();
     }
@@ -110,11 +112,9 @@ public class UBusManagerTest extends TestBase {
         doReturn(mServiceBinder).when(mService).asBinder();
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).registerClient(any(), any(), any(), anyInt(), any());
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).unregisterClient(any());
-        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).enableDispatching(any(), anyInt(), any());
-        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).disableDispatching(any(), anyInt(), any());
+        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).enableDispatching(any(), any(), anyInt(), any());
+        doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).disableDispatching(any(), any(), anyInt(), any());
         doReturn(new ParcelableUStatus(STATUS_OK)).when(mService).send(any(), any());
-        doReturn(new ParcelableUMessage[] { new ParcelableUMessage(MESSAGE) })
-                .when(mService).pull(any(), anyInt(), anyInt(), any());
         prepareService(true, connection -> {
             mServiceConnection = connection;
             mServiceConnection.onServiceConnected(SERVICE, mServiceBinder);
@@ -178,7 +178,7 @@ public class UBusManagerTest extends TestBase {
     public void testConnectWithConfiguredPackage() {
         final String packageName = "some.package";
         setServiceConfig(packageName);
-        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        mManager = new UBusManager(mContext, CLIENT_URI, mConnectionCallback, mListener);
         assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
@@ -190,7 +190,7 @@ public class UBusManagerTest extends TestBase {
     @Test
     public void testConnectWithConfiguredComponent() {
         setServiceConfig(SERVICE.flattenToShortString());
-        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        mManager = new UBusManager(mContext, CLIENT_URI, mConnectionCallback, mListener);
         assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
@@ -202,7 +202,7 @@ public class UBusManagerTest extends TestBase {
     @Test
     public void testConnectWithEmptyConfig() {
         setServiceConfig("");
-        mManager = new UBusManager(mContext, CLIENT, mConnectionCallback, mListener);
+        mManager = new UBusManager(mContext, CLIENT_URI, mConnectionCallback, mListener);
         assertConnected(mManager.connect());
         verify(mContext, times(1)).bindService(argThat(intent -> {
             assertEquals(ACTION_BIND_UBUS, intent.getAction());
@@ -414,72 +414,44 @@ public class UBusManagerTest extends TestBase {
     @Test
     public void testEnableDispatching() throws RemoteException {
         testConnect();
-        assertStatus(UCode.OK, mManager.enableDispatching(RESOURCE_URI));
-        verify(mService, times(1)).enableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
+        assertStatus(UCode.OK, mManager.enableDispatching(new UriFilter(RESOURCE_URI, CLIENT_URI)));
+        verify(mService, times(1)).enableDispatching(
+                eq(new ParcelableUUri(RESOURCE_URI)), eq(new ParcelableUUri(CLIENT_URI)), anyInt(), any());
     }
 
     @Test
     public void testEnableDispatchingDisconnected() throws RemoteException {
-        assertStatus(UCode.UNAVAILABLE, mManager.enableDispatching(RESOURCE_URI));
-        verify(mService, never()).enableDispatching(any(), anyInt(), any());
+        assertStatus(UCode.UNAVAILABLE, mManager.enableDispatching(new UriFilter(RESOURCE_URI, CLIENT_URI)));
+        verify(mService, never()).enableDispatching(any(), any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatching() throws RemoteException {
         testConnect();
-        assertStatus(UCode.OK, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
+        assertStatus(UCode.OK, mManager.disableDispatching(new UriFilter(RESOURCE_URI, CLIENT_URI)));
+        verify(mService, times(1)).disableDispatching(
+                eq(new ParcelableUUri(RESOURCE_URI)), eq(new ParcelableUUri(CLIENT_URI)), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnected() throws RemoteException {
-        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, never()).disableDispatching(any(), anyInt(), any());
+        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(new UriFilter(RESOURCE_URI, CLIENT_URI)));
+        verify(mService, never()).disableDispatching(any(), any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingDisconnectedDebug() throws RemoteException {
         mManager.setLoggable(Log.DEBUG);
-        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(RESOURCE_URI));
-        verify(mService, never()).disableDispatching(any(), anyInt(), any());
+        assertStatus(UCode.UNAVAILABLE, mManager.disableDispatching(new UriFilter(RESOURCE_URI, CLIENT_URI)));
+        verify(mService, never()).disableDispatching(any(), any(), anyInt(), any());
     }
 
     @Test
     public void testDisableDispatchingQuietly() throws RemoteException {
         testConnect();
-        mManager.disableDispatchingQuietly(RESOURCE_URI);
-        verify(mService, times(1)).disableDispatching(eq(new ParcelableUUri(RESOURCE_URI)), anyInt(), any());
-    }
-
-    @Test
-    public void testGetLastMessage() throws RemoteException {
-        testConnect();
-        assertEquals(MESSAGE, mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, times(1)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), anyInt(), any());
-    }
-
-    @Test
-    public void testGetLastMessageNotAvailable() throws RemoteException {
-        testConnect();
-        doReturn(new ParcelableUMessage[0]).when(mService).pull(any(), anyInt(), anyInt(), any());
-        assertNull(mManager.getLastMessage(RESOURCE_URI));
-        doReturn(null).when(mService).pull(any(), anyInt(), anyInt(), any());
-        assertNull(mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, times(2)).pull(eq(new ParcelableUUri(RESOURCE_URI)), eq(1), anyInt(), any());
-    }
-
-    @Test
-    @SuppressWarnings("DataFlowIssue")
-    public void testGetLastMessageInvalidArgument() throws RemoteException {
-        testConnect();
-        doThrow(new NullPointerException()).when(mService).pull(any(), anyInt(), anyInt(), any());
-        assertNull(mManager.getLastMessage(null));
-    }
-
-    @Test
-    public void testGetLastMessageDisconnected() throws RemoteException {
-        assertNull(mManager.getLastMessage(RESOURCE_URI));
-        verify(mService, never()).pull(any(), anyInt(), anyInt(), any());
+        mManager.disableDispatchingQuietly(new UriFilter(RESOURCE_URI, CLIENT_URI));
+        verify(mService, times(1)).disableDispatching(
+                eq(new ParcelableUUri(RESOURCE_URI)), eq(new ParcelableUUri(CLIENT_URI)), anyInt(), any());
     }
 
     @Test

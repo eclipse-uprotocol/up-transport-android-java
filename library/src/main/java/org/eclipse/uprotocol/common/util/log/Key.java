@@ -46,9 +46,12 @@ public interface Key {
     String DUMP = "dump";
     String DURATION = "duration";
     String ENTITY = "entity";
+    String ERROR = "error";
     String EVENT = "event";
+    String EXPIRY = "expiry";
     String FAILURE = "failure";
     String FILENAME = "filename";
+    String FILTER = "filter";
     String FORMAT = "format";
     String ID = "id";
     String INSTANCE = "instance";
@@ -67,10 +70,12 @@ public interface Key {
     String PATH = "path";
     String PAYLOAD = "payload";
     String PERCENTAGE = "percentage";
+    String PERIOD = "period";
     String PERMISSIONS = "permissions";
     String PID = "pid";
     String PRIORITY = "priority";
     String REASON = "reason";
+    String RECORD = "resource";
     String REFERENCE = "reference";
     String REQUEST = "request";
     String REQUEST_ID = "requestId";

@@ -26,19 +26,19 @@ package org.eclipse.uprotocol.common.util.log;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.base.Strings.nullToEmpty;
 
-import android.annotation.SuppressLint;
-
 import androidx.annotation.NonNull;
 
-import org.eclipse.uprotocol.uri.serializer.LongUriSerializer;
-import org.eclipse.uprotocol.uuid.serializer.LongUuidSerializer;
+import org.eclipse.uprotocol.uri.serializer.UriSerializer;
+import org.eclipse.uprotocol.uri.validator.UriFilter;
+import org.eclipse.uprotocol.uuid.serializer.UuidSerializer;
 import org.eclipse.uprotocol.v1.UAttributes;
-import org.eclipse.uprotocol.v1.UEntity;
 import org.eclipse.uprotocol.v1.UMessage;
-import org.eclipse.uprotocol.v1.UResource;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUID;
 import org.eclipse.uprotocol.v1.UUri;
+
+import java.time.Duration;
+import java.util.Locale;
 
 /**
  * The formatter utility to be used for logging key-value pairs.
@@ -191,52 +191,30 @@ public interface Formatter {
     }
 
     /**
+     * Format an error message with optional arguments.
+     *
+     * @param message A message.
+     * @param cause   A {@link Throwable} that caused an error.
+     * @param args    A variable argument list of key-value pairs, like "key1, value1, key2, value2, ...".
+     * @return A formatted string containing an error <code>message</code>, a <code>cause</code>'s message and
+     *         other given key-value pairs.
+     */
+    static @NonNull String error(@NonNull String message, @NonNull Throwable cause, Object... args) {
+        final StringBuilder builder = new StringBuilder();
+        joinAndAppend(builder, Key.ERROR, message);
+        joinAndAppend(builder, Key.REASON, cause.getMessage());
+        joinAndAppend(builder, args);
+        return builder.toString();
+    }
+
+    /**
      * Convert a {@link UUID} into a string.
      *
      * @param id A {@link UUID} to convert.
      * @return A formatted string.
      */
     static @NonNull String stringify(UUID id) {
-        return LongUuidSerializer.instance().serialize(id);
-    }
-
-    /**
-     * Convert a {@link UEntity} into a string containing arbitrary fields.
-     *
-     * @param entity A {@link UEntity} to convert.
-     * @return A formatted string.
-     */
-    static @NonNull String stringify(UEntity entity) {
-        if (entity == null) {
-            return "";
-        }
-        final StringBuilder sb = new StringBuilder();
-        sb.append(entity.getName());
-        if (entity.hasVersionMajor()) {
-            sb.append('/').append(entity.getVersionMajor());
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Convert a {@link UResource} into a string containing arbitrary fields.
-     *
-     * @param resource A {@link UResource} to convert.
-     * @return A formatted string.
-     */
-    static @NonNull String stringify(UResource resource) {
-        if (resource == null) {
-            return "";
-        }
-        final StringBuilder sb = new StringBuilder();
-        sb.append(resource.getName());
-        if (resource.hasInstance()) {
-            sb.append('.').append(resource.getInstance());
-        }
-        if (resource.hasMessage()) {
-            sb.append('#').append(resource.getMessage());
-        }
-        return sb.toString();
+        return UuidSerializer.serialize(id);
     }
 
     /**
@@ -246,7 +224,20 @@ public interface Formatter {
      * @return A formatted string.
      */
     static @NonNull String stringify(UUri uri) {
-        return LongUriSerializer.instance().serialize(uri);
+        return UriSerializer.serialize(uri);
+    }
+
+    /**
+     * Convert a {@link UriFilter} into a string.
+     *
+     * @param filter A {@link UriFilter} to convert.
+     * @return A formatted string.
+     */
+    static @NonNull String stringify(UriFilter filter) {
+        if (filter == null) {
+            return "";
+        }
+        return joinGrouped(Key.SOURCE, stringify(filter.source()), Key.SINK, stringify(filter.sink()));
     }
 
     /**
@@ -287,13 +278,24 @@ public interface Formatter {
      * @param bytes A byte count.
      * @return A formatted string such as "5.0 MB".
      */
-    @SuppressLint("DefaultLocale")
     static @NonNull String toPrettyMemory(long bytes) {
         long unit = 1024;
         if (bytes < unit) {
             return bytes + " B";
         }
         int exp = (int) (Math.log(bytes) / Math.log(unit));
-        return String.format("%.1f %sB", bytes / Math.pow(unit, exp), "KMGTPE".charAt(exp - 1));
+        return String.format(Locale.ROOT, "%.1f %sB", bytes / Math.pow(unit, exp), "KMGTPE".charAt(exp - 1));
+    }
+
+    /**
+     * Convert a duration to a human readable string.
+     *
+     * @param millis A duration in milliseconds.
+     * @return A formatted string such as "2h 30m 0s".
+     */
+    static @NonNull String toPrettyDuration(long millis) {
+        final Duration duration = Duration.ofMillis(millis);
+        return String.format(Locale.ROOT, "%dh %dm %ds",
+                duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
     }
 }

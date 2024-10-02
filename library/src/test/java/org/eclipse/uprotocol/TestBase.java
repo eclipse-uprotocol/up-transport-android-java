@@ -23,11 +23,10 @@
  */
 package org.eclipse.uprotocol;
 
-import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_ID;
-import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_NAME;
-import static org.eclipse.uprotocol.UPClient.META_DATA_ENTITY_VERSION;
 import static org.eclipse.uprotocol.common.util.UStatusUtils.toStatus;
-import static org.eclipse.uprotocol.transport.builder.UPayloadBuilder.packToAny;
+import static org.eclipse.uprotocol.communication.UPayload.packToAny;
+import static org.eclipse.uprotocol.transport.UTransportAndroid.META_DATA_ENTITY_ID;
+import static org.eclipse.uprotocol.transport.UTransportAndroid.META_DATA_ENTITY_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -47,110 +46,55 @@ import androidx.annotation.NonNull;
 
 import com.google.protobuf.Empty;
 
-import org.eclipse.uprotocol.common.UStatusException;
-import org.eclipse.uprotocol.transport.builder.UAttributesBuilder;
-import org.eclipse.uprotocol.uri.factory.UResourceBuilder;
+import org.eclipse.uprotocol.communication.CallOptions;
+import org.eclipse.uprotocol.communication.UPayload;
+import org.eclipse.uprotocol.communication.UStatusException;
 import org.eclipse.uprotocol.uuid.factory.UuidFactory;
-import org.eclipse.uprotocol.v1.CallOptions;
-import org.eclipse.uprotocol.v1.UAttributes;
-import org.eclipse.uprotocol.v1.UAuthority;
 import org.eclipse.uprotocol.v1.UCode;
-import org.eclipse.uprotocol.v1.UEntity;
-import org.eclipse.uprotocol.v1.UMessage;
-import org.eclipse.uprotocol.v1.UMessageType;
-import org.eclipse.uprotocol.v1.UPayload;
-import org.eclipse.uprotocol.v1.UPriority;
-import org.eclipse.uprotocol.v1.UResource;
 import org.eclipse.uprotocol.v1.UStatus;
 import org.eclipse.uprotocol.v1.UUID;
 import org.eclipse.uprotocol.v1.UUri;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("SameParameterValue")
 public class TestBase {
-    protected static final UAuthority AUTHORITY_REMOTE = UAuthority.newBuilder()
-            .setName("cloud")
-            .build();
-    protected static final UEntity SERVICE = UEntity.newBuilder()
-            .setName("test.service")
-            .setVersionMajor(1)
-            .build();
-    protected static final UEntity CLIENT = UEntity.newBuilder()
-            .setName("test.client")
-            .setVersionMajor(1)
-            .build();
-    protected static final UResource RESOURCE = UResource.newBuilder()
-            .setName("resource")
-            .setInstance("main")
-            .setMessage("State")
-            .build();
-    protected static final UResource RESOURCE2 = UResource.newBuilder()
-            .setName("resource2")
-            .setInstance("main2")
-            .setMessage("State2")
-            .build();
-    protected static final UUri RESOURCE_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(RESOURCE)
-            .build();
-    protected static final UUri RESOURCE2_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(RESOURCE2)
-            .build();
-    protected static final UUri METHOD_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(UResourceBuilder.forRpcRequest("method"))
-            .build();
-    protected static final UUri METHOD2_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
-            .setResource(UResourceBuilder.forRpcRequest("method2"))
-            .build();
-    protected static final UUri RESPONSE_URI = UUri.newBuilder()
-            .setEntity(CLIENT)
-            .setResource(UResourceBuilder.forRpcResponse())
-            .build();
-    protected static final UUri RESOURCE_URI_REMOTE =  UUri.newBuilder()
-            .setAuthority(AUTHORITY_REMOTE)
-            .setEntity(SERVICE)
-            .setResource(RESOURCE)
-            .build();
+    protected static final String AUTHORITY_REMOTE = "cloud";
+    protected static final int VERSION = 1;
+    protected static final int CLIENT_ID = 0x50;
+    protected static final int SERVICE_ID = 0x51;
+    protected static final int METHOD_ID = 0x1;
+    protected static final int RESOURCE_ID = 0x8000;
+    protected static final int RESOURCE2_ID = 0x8001;
     protected static final UUri CLIENT_URI = UUri.newBuilder()
-            .setEntity(CLIENT)
+            .setUeId(CLIENT_ID)
+            .setUeVersionMajor(VERSION)
             .build();
     protected static final UUri SERVICE_URI = UUri.newBuilder()
-            .setEntity(SERVICE)
+            .setUeId(SERVICE_ID)
+            .setUeVersionMajor(VERSION)
             .build();
+    protected static final UUri METHOD_URI = UUri.newBuilder(SERVICE_URI)
+            .setResourceId(METHOD_ID)
+            .build();
+    protected static final UUri RESOURCE_URI = UUri.newBuilder(SERVICE_URI)
+            .setResourceId(RESOURCE_ID)
+            .build();
+    protected static final UUri RESOURCE2_URI = UUri.newBuilder(SERVICE_URI)
+            .setResourceId(RESOURCE2_ID)
+            .build();
+    protected static final UUri RESOURCE_URI_REMOTE = UUri.newBuilder(RESOURCE_URI)
+            .setAuthorityName(AUTHORITY_REMOTE)
+            .build();
+
     protected static final UUID ID = createId();
-    protected static final UUID ID2 = createId();
-    protected static final int TTL = 1000;
+    protected static final int TTL = CallOptions.DEFAULT.timeout();
     protected static final String TOKEN =
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG" +
             "4gU21pdGgiLCJpYXQiOjE1MTYyMzkwMjJ9.Q_w2AVguPRU2KskCXwR7ZHl09TQXEntfEA8Jj2_Jyew";
-    protected static final CallOptions OPTIONS = CallOptions.newBuilder()
-            .setPriority(UPriority.UPRIORITY_CS4)
-            .setTtl(TTL)
-            .setToken(TOKEN)
-            .build();
-    protected static final CallOptions DEFAULT_OPTIONS = CallOptions.newBuilder()
-            .setPriority(UPriority.UPRIORITY_CS4)
-            .setTtl(10_000)
-            .build();
-    protected static final UAttributes ATTRIBUTES = UAttributes.newBuilder()
-            .setId(ID)
-            .setType(UMessageType.UMESSAGE_TYPE_RESPONSE)
-            .setSource(METHOD_URI)
-            .setSink(RESPONSE_URI)
-            .setPriority(UPriority.UPRIORITY_CS4)
-            .setTtl(TTL)
-            .setPermissionLevel(5)
-            .setCommstatus(UCode.DEADLINE_EXCEEDED)
-            .setReqid(ID2)
-            .setToken(TOKEN)
-            .build();
     protected static final UPayload PAYLOAD = packToAny(Empty.getDefaultInstance());
     protected static final long DELAY_MS = 100;
 
@@ -158,57 +102,17 @@ public class TestBase {
         return UuidFactory.Factories.UPROTOCOL.factory().create();
     }
 
-    protected static @NonNull UAttributes buildPublishAttributes(@NonNull UUri source) {
-        return newPublishAttributesBuilder(source).build();
+    protected static @NonNull Bundle buildEntityMetadata(UUri uri) {
+        return buildEntityMetadata(uri.getUeId(), uri.getUeVersionMajor());
     }
 
-    protected static @NonNull UAttributes buildRequestAttributes(@NonNull UUri responseUri, @NonNull UUri methodUri) {
-        return newRequestAttributesBuilder(responseUri, methodUri).build();
-    }
-
-    protected static @NonNull UAttributes buildResponseAttributes(
-            @NonNull UUri methodUri, @NonNull UUri responseUri, @NonNull UUID requestId) {
-        return newResponseAttributesBuilder(methodUri, responseUri, requestId).build();
-    }
-
-    protected static @NonNull UAttributesBuilder newPublishAttributesBuilder(@NonNull UUri source) {
-        return UAttributesBuilder.publish(source, UPriority.UPRIORITY_CS0);
-    }
-
-    protected static @NonNull UAttributesBuilder newNotificationAttributesBuilder(
-            @NonNull UUri source, @NonNull UUri sink) {
-        return UAttributesBuilder.notification(source, sink, UPriority.UPRIORITY_CS0);
-    }
-
-    protected static @NonNull UAttributesBuilder newRequestAttributesBuilder(
-            @NonNull UUri responseUri, @NonNull UUri methodUri) {
-        return UAttributesBuilder.request(responseUri, methodUri, UPriority.UPRIORITY_CS4, TTL);
-    }
-
-    protected static @NonNull UAttributesBuilder newResponseAttributesBuilder(
-            @NonNull UUri methodUri, @NonNull UUri responseUri, @NonNull UUID requestId) {
-        return UAttributesBuilder.response(methodUri, responseUri, UPriority.UPRIORITY_CS4, requestId);
-    }
-
-    protected static @NonNull UMessage buildMessage(UPayload payload, UAttributes attributes) {
-        final UMessage.Builder builder = UMessage.newBuilder();
-        if (payload != null) {
-            builder.setPayload(payload);
-        }
-        if (attributes != null) {
-            builder.setAttributes(attributes);
-        }
-        return builder.build();
-    }
-
-    protected static @NonNull Bundle buildMetadata(@NonNull UEntity entity) {
+    protected static @NonNull Bundle buildEntityMetadata(int id, int version) {
         final Bundle bundle = new Bundle();
-        bundle.putString(META_DATA_ENTITY_NAME, entity.getName());
-        if (entity.hasVersionMajor()) {
-            bundle.putInt(META_DATA_ENTITY_VERSION, entity.getVersionMajor());
+        if (id > 0) {
+            bundle.putInt(META_DATA_ENTITY_ID, id);
         }
-        if (entity.hasId()) {
-            bundle.putInt(META_DATA_ENTITY_ID, entity.getId());
+        if (version > 0) {
+            bundle.putInt(META_DATA_ENTITY_VERSION, version);
         }
         return bundle;
     }
@@ -283,13 +187,13 @@ public class TestBase {
         assertEquals(code, status.getCode());
     }
 
-    protected static <T> T getOrThrow(@NonNull Future<T> future) {
-        return getOrThrow(future, DELAY_MS);
+    protected static <T> T getOrThrow(@NonNull CompletionStage<T> stage) {
+        return getOrThrow(stage, DELAY_MS);
     }
 
-    protected static <T> T getOrThrow(@NonNull Future<T> future, long timeout) {
+    protected static <T> T getOrThrow(@NonNull CompletionStage<T> stage, long timeout) {
         try {
-            return future.get(timeout, TimeUnit.MILLISECONDS);
+            return stage.toCompletableFuture().get(timeout, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new UStatusException(toStatus(e));
         }

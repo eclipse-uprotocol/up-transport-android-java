@@ -54,6 +54,9 @@
                 RuntimeVisibleTypeAnnotations,
                 Signature
 
+-keepclasseswithmembers class * {
+  @androidx.annotation.VisibleForTesting *;
+}
 
 # The support libraries contains references to newer platform versions.
 # Don't warn about those in case this app is linking against an older
